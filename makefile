@@ -1,4 +1,4 @@
-.PHONY: run build
+.PHONY: run build debug
 
 run:
 	@./build/src/RadixSort
