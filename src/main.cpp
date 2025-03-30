@@ -70,10 +70,19 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    if (countingSort(array, arrayLen, outputArray, 3))
+    for (int i = 1; i <= maxDigit; i++)
     {
-        fprintf(stderr, "ERROR: Could not perform counting sort\n");
-        return 1;
+        if (countingSort(array, arrayLen, outputArray, i))
+        {
+            fprintf(stderr, "ERROR: Could not perform counting sort\n");
+            return 1;
+        }
+
+        // FIXME: this is dumb and gives bad output
+        // swap the output array and input array
+        int *temp = array;
+        array = outputArray;
+        outputArray = temp;
     }
 
     printArray("before", array, arrayLen);
