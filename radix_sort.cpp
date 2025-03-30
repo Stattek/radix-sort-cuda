@@ -74,7 +74,7 @@ int main(int argc, char *argv[])
     if (maxDigit > 9)
     {
         printf("Max Value = 2147483647. Integer cap reached, all digit values 10 and above are set to the integer cap.\n");
-        maxPossibleValue = 2147483647;
+        maxPossibleValue = __INT_MAX__;
     }
     else
     {
