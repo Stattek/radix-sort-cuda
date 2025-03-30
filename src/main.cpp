@@ -28,6 +28,13 @@ static int *generateRandomArray(int arrayLen, int maxDigit)
     return array;
 }
 
+/**
+ * @brief Prints the array.
+ *
+ * @param name The name of the array.
+ * @param array The array to print.
+ * @param arrayLen The length of the array.
+ */
 static void printArray(const char *name, int *array, int arrayLen)
 {
     printf("Array %s: [", name);
@@ -41,6 +48,34 @@ static void printArray(const char *name, int *array, int arrayLen)
         }
     }
     printf("]\n");
+}
+
+/**
+ * @brief Checks if the array is sorted.
+ *
+ * @param array The array to check.
+ * @param arrayLen The array length.
+ *
+ * @returns `true` if the array is sorted, `false` otherwise.
+ */
+static bool isSorted(int *array, int arrayLen)
+{
+    bool output = true;
+    for (int i = 1; i < arrayLen; i++)
+    {
+        if (array[i - 1] > array[i])
+        {
+            output = false;
+            break;
+        }
+
+        if (!output)
+        {
+            break;
+        }
+    }
+
+    return output;
 }
 
 int main(int argc, char *argv[])
@@ -61,7 +96,6 @@ int main(int argc, char *argv[])
         fprintf(stderr, "ERROR: Could not generate starting array\n");
         return 1;
     }
-    printf("helloworld\n");
 
     int *outputArray = (int *)malloc(sizeof(int) * arrayLen);
     if (!outputArray)
@@ -70,6 +104,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    bool isInOrder = true;
     for (int i = 1; i <= maxDigit; i++)
     {
         if (countingSort(array, arrayLen, outputArray, i))
@@ -78,13 +113,33 @@ int main(int argc, char *argv[])
             return 1;
         }
 
-        // FIXME: this is dumb and gives bad output
         // swap the output array and input array
         int *temp = array;
         array = outputArray;
         outputArray = temp;
+        isInOrder = !isInOrder;
+    }
+
+    // since we were swapping the pointers
+    if (!isInOrder)
+    {
+        // swap the output array and input array
+        int *temp = array;
+        array = outputArray;
+        outputArray = temp;
+        isInOrder = !isInOrder;
     }
 
     printArray("before", array, arrayLen);
     printArray("after", outputArray, arrayLen);
+
+    if (isSorted(outputArray, arrayLen))
+    {
+        printf("The array is sorted successfully.\n");
+    }
+    else
+    {
+        fprintf(stderr, "The array is not sorted.\n");
+        return 1;
+    }
 }
