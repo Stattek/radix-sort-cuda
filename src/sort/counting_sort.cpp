@@ -2,11 +2,20 @@
 #include <stdlib.h>
 #include <string.h>
 
+/**
+ * @brief Finds the maxmimum value in an array and outputs it.
+ *
+ * @param array The array to search.
+ * @param arrayLen The length of the array.
+ * @param output The output maximum value.
+ *
+ * @returns `true` on failure, `false` on success.
+ */
 bool getMax(int *array, int arrayLen, int *output)
 {
     if (!array || !output)
     {
-        return true;
+        return true; // fail
     }
 
     int max = array[0];
@@ -23,9 +32,19 @@ bool getMax(int *array, int arrayLen, int *output)
     return false;
 }
 
+/**
+ * @brief Performs counting sort on an array on the specified digit.
+ *
+ * @param array The array to do the counting sort on.
+ * @param arrayLen The length of the input array.
+ * @param outputArray The output array. Must be at least as long as `array`.
+ * @param digit The significant digit to sort by.
+ *
+ * @returns `true` on failure, `false` on success.
+ */
 bool countingSort(int *array, const int arrayLen, int *outputArray, const int digit)
 {
-    if (!array)
+    if (!array || !outputArray)
     {
         return true; // failure
     }
