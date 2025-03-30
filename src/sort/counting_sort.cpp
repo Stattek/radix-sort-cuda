@@ -69,11 +69,13 @@ bool countingSort(int *array, const int arrayLen, int *outputArray, const int di
         countArray[DIGIT_AT(array[i], digit)]++;
     }
 
+    // prefix sum
     for (int i = 1; i < countArrayLen; i++)
     {
         countArray[i] = countArray[i - 1] + countArray[i];
     }
 
+    // put values in place
     for (int i = arrayLen - 1; i >= 0; i--)
     {
         outputArray[--countArray[DIGIT_AT(array[i], digit)]] = array[i];
