@@ -1,6 +1,8 @@
 # compile this subdirectory
 add_subdirectory(sort)
 
+include_directories(sort/include)
+
 # glob all the files to compile
 file(GLOB SrcImpl *.cpp)
 
