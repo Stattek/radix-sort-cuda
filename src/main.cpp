@@ -22,7 +22,7 @@ static int *generateRandomArray(int arrayLen, int maxDigit)
     srand(time(0));
     for (int i = 0; i < arrayLen; i++)
     {
-        array[i] = rand() % (int)(pow(10, maxDigit));
+        array[i] = rand() % (maxDigit * 10);
     }
 
     return array;
@@ -31,14 +31,14 @@ static int *generateRandomArray(int arrayLen, int maxDigit)
 int main(int argc, char *argv[])
 {
 
-    if (argc != 2)
+    if (argc != 3)
     {
-        printf("Usage: %s <sizeOffArray> <maxDigit#>\n\n", argv[0]);
+        printf("Usage: %s <arrayLen> <maxDigit#>\n\n", argv[0]);
         return 1;
     }
 
     int arrayLen = atoi(argv[1]);
-    int maxDigit = atoi(argv[2]) - 1;
+    int maxDigit = atoi(argv[2]);
 
     int *array = generateRandomArray(arrayLen, maxDigit);
     if (!array)
@@ -55,7 +55,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    if (countingSort(array, arrayLen, outputArray))
+    if (countingSort(array, arrayLen, outputArray, 1))
     {
         fprintf(stderr, "ERROR: Could not perform counting sort\n");
         return 1;

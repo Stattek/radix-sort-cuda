@@ -23,7 +23,7 @@ bool getMax(int *array, int arrayLen, int *output)
     return false;
 }
 
-bool countingSort(int *array, int arrayLen, int *outputArray)
+bool countingSort(int *array, const int arrayLen, int *outputArray, const int digit)
 {
     if (!array)
     {
@@ -35,15 +35,17 @@ bool countingSort(int *array, int arrayLen, int *outputArray)
         return true;
     }
 
-    int *countArray = (int *)calloc(maxElement + 1, sizeof(int));
-    int digit = 1; // the digit we are focused on
+    // create the count array
+    int countArrayLen = maxElement + 1;
+    int *countArray = (int *)calloc(countArrayLen, sizeof(int));
 
+    // count the values and put them in the countArray
     for (int i = 0; i < arrayLen; i++)
     {
         countArray[array[i] % (10 * digit)]++;
     }
 
-    for (int i = 0; i < arrayLen; i++)
+    for (int i = 1; i < countArrayLen; i++)
     {
         countArray[i] = countArray[i - 1] + countArray[i];
     }
