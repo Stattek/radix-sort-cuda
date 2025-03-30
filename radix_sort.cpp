@@ -63,7 +63,7 @@ int main(int argc, char *argv[])
 
     if (argc != 3)
     {
-        printf("Usage: %s <sizeOffArray> <#Digits>\n", argv[0]);
+        printf("Usage: %s <sizeOfArray> <#Digits>\n", argv[0]);
         return -1;
     }
 
