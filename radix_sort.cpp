@@ -26,7 +26,7 @@ inline void printArray(int *array, int arraySize)
     printf("\n");
 }
 
-inline void countSort(int *inputArray, int inputArraySize, int *outArray, int digit)
+inline void countSort(int *&inputArray, int inputArraySize, int *&outArray, int digit)
 {
     int countArray[10];
     for (int i = 0; i < 10; i++)
@@ -56,6 +56,19 @@ inline void countSort(int *inputArray, int inputArraySize, int *outArray, int di
     int *temp = inputArray;
     inputArray = outArray;
     outArray = temp;
+}
+inline bool isSorted(int *array, int arraySize)
+{
+    bool check = true;
+    for (int i = 1; i < arraySize; i++)
+    {
+        if (array[i - 1] > array[i])
+        {
+            printf("array[%d] = %d, array[%d] = %d\n", i - 1, array[i - 1], i, array[i]);
+            check = false;
+        }
+    }
+    return check;
 }
 
 int main(int argc, char *argv[])
@@ -96,7 +109,13 @@ int main(int argc, char *argv[])
     }
 
     printf("Final Output:\n");
-    printArray(outArray, inputArraySize);
+    printArray(inputArray, inputArraySize);
+
+    if(isSorted(inputArray,inputArraySize)){
+        printf("The array is sorted.\n");
+    } else {
+        printf("The array is not sorted\n");
+    }
 
     delete[] inputArray;
     delete[] outArray;
