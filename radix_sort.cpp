@@ -64,7 +64,7 @@ inline bool isSorted(int *array, int arraySize)
     {
         if (array[i - 1] > array[i])
         {
-            printf("array[%d] = %d, array[%d] = %d\n", i - 1, array[i - 1], i, array[i]);
+            printf("Error at: array[%d] = %d, array[%d] = %d\n", i - 1, array[i - 1], i, array[i]);
             check = false;
         }
     }
