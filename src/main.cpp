@@ -22,7 +22,7 @@ static int *generateRandomArray(int arrayLen, int maxDigit)
     srand(time(0));
     for (int i = 0; i < arrayLen; i++)
     {
-        array[i] = rand() % (maxDigit * 10);
+        array[i] = rand() % (int)pow(10, maxDigit);
     }
 
     return array;
@@ -55,7 +55,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    if (countingSort(array, arrayLen, outputArray, 1))
+    if (countingSort(array, arrayLen, outputArray, 3))
     {
         fprintf(stderr, "ERROR: Could not perform counting sort\n");
         return 1;

@@ -1,6 +1,7 @@
 #include "counting_sort.h"
 #include <stdlib.h>
 #include <string.h>
+#include <cmath>
 
 /**
  * @brief Finds the maxmimum value in an array and outputs it.
@@ -61,7 +62,9 @@ bool countingSort(int *array, const int arrayLen, int *outputArray, const int di
     // count the values and put them in the countArray
     for (int i = 0; i < arrayLen; i++)
     {
-        countArray[array[i] % (10 * digit)]++;
+        int tempIndex = array[i] % (int)pow(10, digit);
+        tempIndex /= (int)pow(10, digit - 1);
+        countArray[(array[i] % (int)pow(10, digit))]++;
     }
 
     for (int i = 1; i < countArrayLen; i++)
