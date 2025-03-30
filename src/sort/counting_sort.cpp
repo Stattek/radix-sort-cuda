@@ -3,29 +3,32 @@
 #include <string.h>
 #include <cmath>
 
+#define DIGIT_AT(value, digit) ((value % (int)pow(10, digit)) / (int)pow(10, digit - 1))
+
 /**
- * @brief Finds the maxmimum value in an array and outputs it.
+ * @brief Finds the maxmimum value in an array at a digit and outputs it.
  *
  * @param array The array to search.
  * @param arrayLen The length of the array.
+ * @param digit The digit to find the maximum value for.
  * @param output The output maximum value.
  *
  * @returns `true` on failure, `false` on success.
  */
-bool getMax(int *array, int arrayLen, int *output)
+bool getMax(int *array, int arrayLen, int digit, int *output)
 {
     if (!array || !output)
     {
         return true; // fail
     }
 
-    int max = array[0];
+    int max = DIGIT_AT(array[0], digit);
     // find the maximum
     for (int i = 1; i < arrayLen; i++)
     {
-        if (array[i] > max)
+        if (DIGIT_AT(array[i], digit) > max)
         {
-            max = array[i];
+            max = DIGIT_AT(array[i], digit);
         }
     }
 
@@ -50,21 +53,21 @@ bool countingSort(int *array, const int arrayLen, int *outputArray, const int di
         return true; // failure
     }
     int maxElement = 0;
-    if (getMax(array, arrayLen, &maxElement))
+    if (getMax(array, arrayLen, digit, &maxElement))
     {
         return true;
     }
 
     // create the count array
+
     int countArrayLen = maxElement + 1;
     int *countArray = (int *)calloc(countArrayLen, sizeof(int));
 
     // count the values and put them in the countArray
     for (int i = 0; i < arrayLen; i++)
     {
-        int tempIndex = array[i] % (int)pow(10, digit);
-        tempIndex /= (int)pow(10, digit - 1);
-        countArray[(array[i] % (int)pow(10, digit))]++;
+        int tempIndex = DIGIT_AT(array[i], digit);
+        countArray[DIGIT_AT(array[i], digit)]++;
     }
 
     for (int i = 1; i < countArrayLen; i++)
@@ -74,7 +77,7 @@ bool countingSort(int *array, const int arrayLen, int *outputArray, const int di
 
     for (int i = arrayLen - 1; i >= 0; i--)
     {
-        outputArray[--countArray[array[i]]] = array[i];
+        outputArray[--countArray[DIGIT_AT(array[i], digit)]] = array[i];
     }
 
     free(countArray);
