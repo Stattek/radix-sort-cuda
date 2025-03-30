@@ -65,7 +65,6 @@ bool countingSort(int *array, const int arrayLen, int *outputArray, const int di
     // count the values and put them in the countArray
     for (int i = 0; i < arrayLen; i++)
     {
-        int tempIndex = DIGIT_AT(array[i], digit);
         countArray[DIGIT_AT(array[i], digit)]++;
     }
 
