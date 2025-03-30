@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 
+set(CMAKE_COLOR_DIAGNOSTICS "ON")
+
 # set the compiler flags
 add_compile_options("-Wall")
 
