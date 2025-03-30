@@ -59,7 +59,6 @@ bool countingSort(int *array, const int arrayLen, int *outputArray, const int di
     }
 
     // create the count array
-
     int countArrayLen = maxElement + 1;
     int *countArray = (int *)calloc(countArrayLen, sizeof(int));
 
