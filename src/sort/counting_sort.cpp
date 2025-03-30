@@ -15,7 +15,7 @@
  *
  * @returns `true` on failure, `false` on success.
  */
-bool getMax(int *array, int arrayLen, int digit, int *output)
+bool getMax(const int *array, const int arrayLen, const int digit, int *output)
 {
     if (!array || !output)
     {
