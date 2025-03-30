@@ -28,6 +28,21 @@ static int *generateRandomArray(int arrayLen, int maxDigit)
     return array;
 }
 
+static void printArray(const char *name, int *array, int arrayLen)
+{
+    printf("Array %s: [", name);
+    for (int i = 0; i < arrayLen; i++)
+    {
+        printf("%d", array[i]);
+
+        if (i != arrayLen - 1)
+        {
+            printf(", ");
+        }
+    }
+    printf("]\n");
+}
+
 int main(int argc, char *argv[])
 {
 
@@ -60,4 +75,7 @@ int main(int argc, char *argv[])
         fprintf(stderr, "ERROR: Could not perform counting sort\n");
         return 1;
     }
+
+    printArray("before", array, arrayLen);
+    printArray("after", outputArray, arrayLen);
 }
