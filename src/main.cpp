@@ -1,29 +1,6 @@
 #include <stdio.h>
-#include <stdlib.h>
 #include <iostream>
-#include <cmath>
-using namespace std;
-
-int getMax(int array[], int n)
-{
-    int max = array[0];
-    for (int i = 1; i < n; i++)
-    {
-        if (array[i] > max)
-        {
-            max = array[i];
-        }
-    }
-    return max;
-}
-void generateRandomArray(int *array, int arraySize, int maxDigit)
-{
-    srand(time(0));
-    for (int i = 0; i < arraySize; i++)
-    {
-        array[i] = rand() % (int)(pow(10, maxDigit));
-    }
-}
+#include "radix_sort.h"
 
 int main(int argc, char *argv[])
 {
