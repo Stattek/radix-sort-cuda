@@ -109,9 +109,11 @@ int main(int argc, char *argv[])
     {
         fprintf(stderr, "The array is not sorted.\n");
         free(array);
+        array = NULL;
         return 1;
     }
 
     free(array);
+    array = NULL;
     return 0;
 }
