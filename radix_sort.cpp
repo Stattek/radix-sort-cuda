@@ -8,7 +8,6 @@
 #include <cmath>
 using namespace std;
 
-
 inline void generateRandomArray(int *array, int arraySize, int maxVal)
 {
     srand(time(0));
@@ -54,12 +53,9 @@ inline void countSort(int *inputArray, int inputArraySize, int *outArray, int di
         int newIndex = countArray[(inputArray[i] / digit) % 10];
         outArray[newIndex] = inputArray[i];
     }
-    for (int i = 0; i < inputArraySize; i++)
-    {
-        inputArray[i] = outArray[i];
-    }
-
-
+    int *temp = inputArray;
+    inputArray = outArray;
+    outArray = temp;
 }
 
 int main(int argc, char *argv[])
@@ -70,31 +66,38 @@ int main(int argc, char *argv[])
         printf("Usage: %s <sizeOffArray> <#Digits>\n", argv[0]);
         return -1;
     }
-    
 
     int inputArraySize = atoi(argv[1]);
     int maxDigit = atoi(argv[2]);
-    int inputArray[inputArraySize];
-    int outArray[inputArraySize];
     int maxPossibleValue;
-    if(maxDigit > 9){
+
+    if (maxDigit > 9)
+    {
         printf("Max Value = 2147483647. Integer cap reached, all digit values 10 and above are set to the integer cap.\n");
-        maxPossibleValue =  2147483647;
-    } else {
-        maxPossibleValue  = (int)(pow(10, maxDigit));
+        maxPossibleValue = 2147483647;
+    }
+    else
+    {
+        maxPossibleValue = (int)(pow(10, maxDigit));
         printf("Max Value: %d\n", maxPossibleValue);
     }
 
-    generateRandomArray(inputArray, inputArraySize, maxPossibleValue);
+    int *inputArray = new int[inputArraySize];
+    int *outArray = new int[inputArraySize];
 
+    generateRandomArray(inputArray, inputArraySize, maxPossibleValue);
 
     printf("Initial input:\n");
     printArray(inputArray, inputArraySize);
 
-    for (long int i = 1; i < maxPossibleValue; i*=10)
+    for (long int i = 1; i < maxPossibleValue; i *= 10)
     {
         countSort(inputArray, inputArraySize, outArray, i);
     }
+
     printf("Final Output:\n");
     printArray(outArray, inputArraySize);
+
+    delete[] inputArray;
+    delete[] outArray;
 }
