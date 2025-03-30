@@ -1,7 +1,7 @@
 .PHONY: run build
 
 run:
-	@./build/RadixSort
+	@./build/src/RadixSort
 
 build:
 	@mkdir -p build/; cd build/; cmake ../ -G Ninja; ninja;
