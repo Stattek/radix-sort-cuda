@@ -21,7 +21,7 @@ void generateRandomArray(int *array, int arraySize, int maxDigit)
     srand(time(0));
     for (int i = 0; i < arraySize; i++)
     {
-        array[i] = rand() % (int)(pow(10, maxDigit));
+        array[i] = rand() % (int)(pow(10,maxDigit)); 
     }
 }
 
@@ -42,3 +42,5 @@ int main(int argc, char *argv[])
 
     int max = getMax(array, arraySize);
 }
+
+
