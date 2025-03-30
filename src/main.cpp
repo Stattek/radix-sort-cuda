@@ -97,49 +97,21 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    int *outputArray = (int *)malloc(sizeof(int) * arrayLen);
-    if (!outputArray)
-    {
-        fprintf(stderr, "ERROR: Could not allocate output array\n");
-        return 1;
-    }
-
-    bool isInOrder = true;
-    for (int i = 1; i <= maxDigit; i++)
-    {
-        if (countingSort(array, arrayLen, outputArray, i))
-        {
-            fprintf(stderr, "ERROR: Could not perform counting sort\n");
-            return 1;
-        }
-
-        // swap the output array and input array
-        int *temp = array;
-        array = outputArray;
-        outputArray = temp;
-        isInOrder = !isInOrder;
-    }
-
-    // since we were swapping the pointers
-    if (!isInOrder)
-    {
-        // swap the output array and input array
-        int *temp = array;
-        array = outputArray;
-        outputArray = temp;
-        isInOrder = !isInOrder;
-    }
-
     printArray("before", array, arrayLen);
-    printArray("after", outputArray, arrayLen);
+    radixSort(&array, arrayLen, maxDigit);
+    printArray("after", array, arrayLen);
 
-    if (isSorted(outputArray, arrayLen))
+    if (isSorted(array, arrayLen))
     {
         printf("The array is sorted successfully.\n");
     }
     else
     {
         fprintf(stderr, "The array is not sorted.\n");
+        free(array);
         return 1;
     }
+
+    free(array);
+    return 0;
 }
