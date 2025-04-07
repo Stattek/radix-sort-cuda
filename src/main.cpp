@@ -6,6 +6,8 @@
 #include <cmath>
 #include <iostream>
 
+#define PRINT_THRESHOLD 50
+
 /**
  * @brief Generates a random array for sorting.
  * @note The array MUST BE FREED by the user of this function.
@@ -37,17 +39,22 @@ static int *generateRandomArray(int arrayLen, int maxDigit)
  */
 static void printArray(const char *name, int *array, int arrayLen)
 {
-    printf("Array %s: [", name);
-    for (int i = 0; i < arrayLen; i++)
-    {
-        printf("%d", array[i]);
+    printf("Array %s (Length %d):\n", name, arrayLen);
 
-        if (i != arrayLen - 1)
+    if (arrayLen <= PRINT_THRESHOLD)
+    {
+        printf("[");
+        for (int i = 0; i < arrayLen; i++)
         {
-            printf(", ");
+            printf("%d", array[i]);
+
+            if (i != arrayLen - 1)
+            {
+                printf(", ");
+            }
         }
+        printf("]\n");
     }
-    printf("]\n");
 }
 
 /**
