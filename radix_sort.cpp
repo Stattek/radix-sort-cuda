@@ -10,7 +10,7 @@ using namespace std;
 
 inline void generateRandomArray(int *array, int arraySize, int maxVal)
 {
-    srand(time(0));
+    srand(time(NULL));
     for (int i = 0; i < arraySize; i++)
     {
         array[i] = rand() % maxVal;
