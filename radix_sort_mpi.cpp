@@ -186,13 +186,13 @@ int main(int argc, char *argv[])
     }
     MPI_Init(&argc, &argv);
 
-    int rank, size;
+    int rank, nproc;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    MPI_Comm_size(MPI_COMM_WORLD, &nproc);
 
     int *inputArray = nullptr;
-    int baseLocalArraySize = inputArraySize / size;
-    int remainder = inputArraySize % size;
+    int baseLocalArraySize = inputArraySize / nproc;
+    int remainder = inputArraySize % nproc;
     int localArraySize = (rank < remainder) ? baseLocalArraySize + 1 : baseLocalArraySize;
     // Create a local count array to store the count of each digit for the current process
     int *localCountArray = new int[10]();
@@ -201,19 +201,23 @@ int main(int argc, char *argv[])
 
     int *localArray = new int[localArraySize];
 
+    // temp array for saving results
+    int *tempRecvCounts = NULL;
+    int *tempDispls = NULL;
+
     // Output Array
 
     // Allocate countMatrix and offsetMatrix as contiguous blocks
-    int *flatCountMatrix = new int[size * 10]();
-    int **countMatrix = new int *[size];
-    for (int i = 0; i < size; i++)
+    int *flatCountMatrix = new int[nproc * 10]();
+    int **countMatrix = new int *[nproc];
+    for (int i = 0; i < nproc; i++)
     {
         countMatrix[i] = &flatCountMatrix[i * 10];
     }
 
-    int *flatOffsetMatrix = new int[size * 10]();
-    int **offsetMatrix = new int *[size];
-    for (int i = 0; i < size; i++)
+    int *flatOffsetMatrix = new int[nproc * 10]();
+    int **offsetMatrix = new int *[nproc];
+    for (int i = 0; i < nproc; i++)
     {
         offsetMatrix[i] = &flatOffsetMatrix[i * 10];
     }
@@ -224,13 +228,33 @@ int main(int argc, char *argv[])
         generateRandomArray(inputArray, inputArraySize, maxPossibleValue);
         printf("Initial input:\n");
         printArray(inputArray, inputArraySize);
+
+        // set up the temp array
+        tempRecvCounts = new int[nproc];
+        tempDispls = new int[nproc];
+        int sum = 0;
+        for (int i = 0; i < nproc; i++)
+        {
+            if (rank < remainder)
+            {
+                tempRecvCounts[i] = baseLocalArraySize + 1;
+            }
+            else
+            {
+                tempRecvCounts[i] = baseLocalArraySize;
+            }
+
+            tempDispls[i] = sum;
+            sum += tempRecvCounts[i];
+        }
     }
+
     MPI_Barrier(MPI_COMM_WORLD);
 
     // Calculate displacements and send counts for scattering
-    int *sendCounts = new int[size];
-    int *displacements = new int[size];
-    for (int i = 0; i < size; i++)
+    int *sendCounts = new int[nproc];
+    int *displacements = new int[nproc];
+    for (int i = 0; i < nproc; i++)
     {
         sendCounts[i] = (i < remainder) ? baseLocalArraySize + 1 : baseLocalArraySize;
         displacements[i] = (i == 0) ? 0 : displacements[i - 1] + sendCounts[i - 1];
@@ -248,33 +272,51 @@ int main(int argc, char *argv[])
         MPI_Barrier(MPI_COMM_WORLD);
         // Gather localCountArray into flatCountMatrix
         MPI_Gather(localCountArray, 10, MPI_INT, flatCountMatrix, 10, MPI_INT, 0, MPI_COMM_WORLD);
-        MPI_Bcast(flatCountMatrix, size * 10, MPI_INT, 0, MPI_COMM_WORLD);
+        MPI_Bcast(flatCountMatrix, nproc * 10, MPI_INT, 0, MPI_COMM_WORLD);
         // compute offsets
-        computeOffsets(countMatrix, size, 10, offsetMatrix);
+        computeOffsets(countMatrix, nproc, 10, offsetMatrix);
         // gather offsetMatrix
         MPI_Gather(offsetMatrix[rank], 10, MPI_INT, flatOffsetMatrix, 10, MPI_INT, 0, MPI_COMM_WORLD);
-        MPI_Bcast(flatOffsetMatrix, size * 10, MPI_INT, 0, MPI_COMM_WORLD);
+        MPI_Bcast(flatOffsetMatrix, nproc * 10, MPI_INT, 0, MPI_COMM_WORLD);
 
         MPI_Barrier(MPI_COMM_WORLD);
         // compute local offsets
         computeLocalOffsets(localArray, localArraySize, offsetMatrix, 10, rank, localOffsetArray, digit);
         MPI_Barrier(MPI_COMM_WORLD);
+#if 0
         // move values
         moveValues(localArray, localArraySize, localOffsetArray, outputArray, inputArraySize);
+#endif
+
+        int *tempOffsetArray = new int[inputArraySize];
+        MPI_Gatherv(localOffsetArray, localArraySize, MPI_INT, tempOffsetArray, tempRecvCounts, tempDispls, MPI_INT, 0, MPI_COMM_WORLD);
+        printf("tempOffsetArray\n");
+        printArray(tempOffsetArray, inputArraySize);
+
+        // do the move values
+        if (rank == 0)
+        {
+            moveValues(inputArray, localArraySize, localOffsetArray, outputArray, inputArraySize);
+        }
 
         printf("proc %d - Array after digit %d:\n", rank, digit);
         printArray(outputArray, inputArraySize);
 
         MPI_Barrier(MPI_COMM_WORLD);
+#if 0
         // Reduce the outputArray across all processes to gather the final sorted array
         MPI_Reduce(rank == 0 ? MPI_IN_PLACE : outputArray, outputArray, inputArraySize, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+
+        MPI_Bcast(inputArray, inputArraySize, MPI_INT, 0, MPI_COMM_WORLD);
+#endif
+
         // do something here
         MPI_Barrier(MPI_COMM_WORLD);
     }
     if (rank == 0)
     {
         printf("Offset Matrix:\n");
-        for (int i = 0; i < size; i++)
+        for (int i = 0; i < nproc; i++)
         {
             for (int j = 0; j < 10; j++)
             {
@@ -284,7 +326,7 @@ int main(int argc, char *argv[])
         }
 
         printf("Count Matrix:\n");
-        for (int i = 0; i < size; i++)
+        for (int i = 0; i < nproc; i++)
         {
             for (int j = 0; j < 10; j++)
             {
