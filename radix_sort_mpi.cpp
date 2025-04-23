@@ -21,11 +21,18 @@ inline void generateRandomArray(int *array, int arraySize, int maxVal)
 
 inline void printArray(int *array, int arraySize)
 {
-    for (int i = 0; i < arraySize; i++)
+    if (arraySize < 20)
     {
-        printf("%d ", array[i]);
+        for (int i = 0; i < arraySize; i++)
+        {
+            printf("%d ", array[i]);
+        }
+        printf("\n");
     }
-    printf("\n");
+    else
+    {
+        printf("Array Too Big \n");
+    }
 }
 
 void countSort(int *array, int arraySize, int digit)
@@ -64,11 +71,11 @@ inline bool isSorted(int *array, int arraySize)
     bool check = true;
     for (int i = 1; i < arraySize; i++)
     {
-        if (array[i - 1] > array[i])
-        {
-            printf("Error at: array[%d] = %d, array[%d] = %d\n", i - 1, array[i - 1], i, array[i]);
-            check = false;
-        }
+        // if (array[i - 1] > array[i])
+        // {
+        //     printf("Error at: array[%d] = %d, array[%d] = %d\n", i - 1, array[i - 1], i, array[i]);
+        //     check = false;
+        // }
     }
     return check;
 }
@@ -123,7 +130,7 @@ void computeLocalOffsets(int *localArray, int localArraySize, int **offsetMatrix
         offsets[i] = localOffsets[value]; // Assign the current offset for the value
         localOffsets[value]++;            // Increment the offset for the next occurrence
         // Debug print to check offsets
-        printf("Process %d: Value %d assigned offset %d\n", rank, value, offsets[i]);
+        // printf("Process %d: Value %d assigned offset %d\n", rank, value, offsets[i]);
     }
 
     delete[] localOffsets;
@@ -140,11 +147,11 @@ void moveValues(int *localArray, int localArraySize, int *offsets, int *globalAr
         // printf("Process: Writing value %d at index %d\n", localArray[i], offsets[i]);
 
         // Check for out-of-bounds access
-        if (offsets[i] < 0 || offsets[i] >= globalArraySize)
-        {
-            printf("Error: Offset %d is out of bounds for globalArray\n", offsets[i]);
-            MPI_Abort(MPI_COMM_WORLD, -1);
-        }
+        // if (offsets[i] < 0 || offsets[i] >= globalArraySize)
+        // {
+        //     printf("Error: Offset %d is out of bounds for globalArray\n", offsets[i]);
+        //     MPI_Abort(MPI_COMM_WORLD, -1);
+        // }
 
         globalArray[offsets[i]] = localArray[i];
     }
@@ -264,13 +271,13 @@ int main(int argc, char *argv[])
     {
         MPI_Scatterv(inputArray, sendCounts, displacements, MPI_INT, localArray, localArraySize, MPI_INT, 0, MPI_COMM_WORLD);
 
-        printf("Process %d received local array:\n", rank);
-        printArray(localArray, localArraySize);
+        // printf("Process %d received local array:\n", rank);
+        // printArray(localArray, localArraySize);
 
         // OLD: countSort(localArray, localArraySize, digit);
         updateCountMatrix(localCountArray, localArray, localArraySize, digit, rank);
-        MPI_Barrier(MPI_COMM_WORLD);
-        // Gather localCountArray into flatCountMatrix
+        // MPI_Barrier(MPI_COMM_WORLD);
+        //  Gather localCountArray into flatCountMatrix
         MPI_Gather(localCountArray, 10, MPI_INT, flatCountMatrix, 10, MPI_INT, 0, MPI_COMM_WORLD);
         MPI_Bcast(flatCountMatrix, nproc * 10, MPI_INT, 0, MPI_COMM_WORLD);
         // compute offsets
@@ -279,65 +286,56 @@ int main(int argc, char *argv[])
         MPI_Gather(offsetMatrix[rank], 10, MPI_INT, flatOffsetMatrix, 10, MPI_INT, 0, MPI_COMM_WORLD);
         MPI_Bcast(flatOffsetMatrix, nproc * 10, MPI_INT, 0, MPI_COMM_WORLD);
 
-        MPI_Barrier(MPI_COMM_WORLD);
-        // compute local offsets
+        // MPI_Barrier(MPI_COMM_WORLD);
+        //  compute local offsets
         computeLocalOffsets(localArray, localArraySize, offsetMatrix, 10, rank, localOffsetArray, digit);
-        MPI_Barrier(MPI_COMM_WORLD);
-#if 0
-        // move values
-        moveValues(localArray, localArraySize, localOffsetArray, outputArray, inputArraySize);
-#endif
+        // MPI_Barrier(MPI_COMM_WORLD);
 
         int *tempOffsetArray = new int[inputArraySize];
         MPI_Gatherv(localOffsetArray, localArraySize, MPI_INT, tempOffsetArray, tempRecvCounts, tempDispls, MPI_INT, 0, MPI_COMM_WORLD);
-        printf("tempOffsetArray\n");
-        printArray(tempOffsetArray, inputArraySize);
+        // printf("tempOffsetArray\n");
+        // printArray(tempOffsetArray, inputArraySize);
 
         // do the move values
         if (rank == 0)
         {
-            moveValues(inputArray, localArraySize, localOffsetArray, outputArray, inputArraySize);
+            moveValues(inputArray, inputArraySize, tempOffsetArray, outputArray, inputArraySize);
+            // Copy the output array back to the input array for the next iteration
+            for (int i = 0; i < inputArraySize; i++)
+            {
+                inputArray[i] = outputArray[i];
+            }
         }
 
-        printf("proc %d - Array after digit %d:\n", rank, digit);
-        printArray(outputArray, inputArraySize);
-        int * temp = inputArray;
-        inputArray = outputArray;
-        outputArray = temp;
-        
-        MPI_Barrier(MPI_COMM_WORLD);
-#if 0
-        // Reduce the outputArray across all processes to gather the final sorted array
-        MPI_Reduce(rank == 0 ? MPI_IN_PLACE : outputArray, outputArray, inputArraySize, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+        // printf("proc %d - Array after digit %d:\n", rank, digit);
 
-        MPI_Bcast(inputArray, inputArraySize, MPI_INT, 0, MPI_COMM_WORLD);
-#endif
+        MPI_Barrier(MPI_COMM_WORLD);
 
         // do something here
         MPI_Barrier(MPI_COMM_WORLD);
     }
-    if (rank == 0)
-    {
-        printf("Offset Matrix:\n");
-        for (int i = 0; i < nproc; i++)
-        {
-            for (int j = 0; j < 10; j++)
-            {
-                printf("%d ", offsetMatrix[i][j]);
-            }
-            printf("\n");
-        }
+    // if (rank == 0)
+    // {
+    //     printf("Offset Matrix:\n");
+    //     for (int i = 0; i < nproc; i++)
+    //     {
+    //         for (int j = 0; j < 10; j++)
+    //         {
+    //             printf("%d ", offsetMatrix[i][j]);
+    //         }
+    //         printf("\n");
+    //     }
 
-        printf("Count Matrix:\n");
-        for (int i = 0; i < nproc; i++)
-        {
-            for (int j = 0; j < 10; j++)
-            {
-                printf("%d ", countMatrix[i][j]);
-            }
-            printf("\n");
-        }
-    }
+    //     printf("Count Matrix:\n");
+    //     for (int i = 0; i < nproc; i++)
+    //     {
+    //         for (int j = 0; j < 10; j++)
+    //         {
+    //             printf("%d ", countMatrix[i][j]);
+    //         }
+    //         printf("\n");
+    //     }
+    // }
 
     // MPI_Gatherv(localArray, localArraySize, MPI_INT, inputArray, sendCounts, displacements, MPI_INT, 0, MPI_COMM_WORLD);
     //  Print the count matrix for debugging
