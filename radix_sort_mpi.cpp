@@ -301,7 +301,10 @@ int main(int argc, char *argv[])
 
         printf("proc %d - Array after digit %d:\n", rank, digit);
         printArray(outputArray, inputArraySize);
-
+        int * temp = inputArray;
+        inputArray = outputArray;
+        outputArray = temp;
+        
         MPI_Barrier(MPI_COMM_WORLD);
 #if 0
         // Reduce the outputArray across all processes to gather the final sorted array
