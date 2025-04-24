@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <iostream>
 #include <cmath>
+#include <omp.h>
 using namespace std;
 
 inline void generateRandomArray(int *array, int arraySize, int maxVal)
@@ -71,11 +72,11 @@ inline bool isSorted(int *array, int arraySize)
     bool check = true;
     for (int i = 1; i < arraySize; i++)
     {
-        // if (array[i - 1] > array[i])
-        // {
-        //     printf("Error at: array[%d] = %d, array[%d] = %d\n", i - 1, array[i - 1], i, array[i]);
-        //     check = false;
-        // }
+        if (array[i - 1] > array[i])
+        {
+            // printf("Error at: array[%d] = %d, array[%d] = %d\n", i - 1, array[i - 1], i, array[i]);
+            check = false;
+        }
     }
     return check;
 }
@@ -88,6 +89,7 @@ void computeOffsets(int **countMatrix, int numSections, int numValues, int **off
     // Initialize the offset matrix
     for (int m = 0; m < numSections; m++)
     {
+#pragma omp parallel for
         for (int n = 0; n < numValues; n++)
         {
             offsetMatrix[m][n] = 0;
@@ -118,6 +120,7 @@ void computeLocalOffsets(int *localArray, int localArraySize, int **offsetMatrix
 {
     // Create a local copy of the offsets for the current process to track updates
     int *localOffsets = new int[numValues];
+#pragma omp parallel for
     for (int i = 0; i < numValues; i++)
     {
         localOffsets[i] = offsetMatrix[rank][i];
@@ -141,6 +144,7 @@ void computeLocalOffsets(int *localArray, int localArraySize, int **offsetMatrix
  */
 void moveValues(int *localArray, int localArraySize, int *offsets, int *globalArray, int globalArraySize)
 {
+#pragma omp parallel for
     for (int i = 0; i < localArraySize; i++)
     {
         // Debug print to check offsets and values
@@ -167,19 +171,23 @@ void updateCountMatrix(int *countMatrix, int *localArray, int localArraySize, in
         countMatrix[i] = 0;
     }
 
-    // Count the occurrences of each digit at the current place value in the local array
+// Count the occurrences of each digit at the current place value in the local array
+#pragma omp parallel for
     for (int i = 0; i < localArraySize; i++)
     {
         int digitValue = (localArray[i] / digit) % 10;
-        countMatrix[digitValue]++;
+#pragma omp critical
+        {
+            countMatrix[digitValue]++;
+        }
     }
 }
 
 int main(int argc, char *argv[])
 {
-    if (argc != 3)
+    if (argc != 4)
     {
-        printf("Usage: %s <sizeOfArray> <#Digits>\n", argv[0]);
+        printf("Usage: %s <sizeOfArray> <#Digits> <Omp threads>\n", argv[0]);
         return -1;
     }
 
@@ -196,7 +204,8 @@ int main(int argc, char *argv[])
     int rank, nproc;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &nproc);
-
+    int omp_threads = atoi(argv[3]);
+    omp_set_num_threads(omp_threads);
     int *inputArray = nullptr;
     int baseLocalArraySize = inputArraySize / nproc;
     int remainder = inputArraySize % nproc;
