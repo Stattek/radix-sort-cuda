@@ -1,6 +1,6 @@
 /*
- * Compile: mpic++ -Wall radix_sort_mpi.cpp -o rsort_mpi
- * Run: mpirun -np <num_processes> ./rsort_mpi <sizeOfArray> <#Digits>
+ * Compile: mpic++ -Wall radix_sort_mpi.cpp -o rsort_mpi.out -fopenmp
+ * Run: mpirun -np <num_processes> ./rsort_mpi.out <sizeOfArray> <#Digits> <Omp_threads>
  */
 
 #include <mpi.h>
