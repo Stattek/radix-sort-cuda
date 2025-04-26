@@ -82,9 +82,10 @@ static uint getNumDigits(uint value)
  */
 static void printArray(const char *name, uint *array, uint arrayLen)
 {
+    printf("\nArray %s, length %d:", name, arrayLen);
     if (arrayLen <= ARRAY_PRINT_THRESHOLD)
     {
-        printf("Array %s: [", name);
+        printf(" [");
         for (uint i = 0; i < arrayLen; i++)
         {
             printf("%d", array[i]);
@@ -95,6 +96,10 @@ static void printArray(const char *name, uint *array, uint arrayLen)
             }
         }
         printf("]\n");
+    }
+    else
+    {
+        printf(" Array above printing threshold %d\n", ARRAY_PRINT_THRESHOLD);
     }
 }
 
@@ -130,6 +135,12 @@ static uint *readIntArrayFromFile(const char *fileName, uint &outputNumElements)
     catch (...)
     {
         return NULL; // fail
+    }
+
+    if (output.empty())
+    {
+        // either no integers or a bad file name
+        return NULL;
     }
 
     uint *outputPointer = new uint[output.size()];
@@ -341,15 +352,22 @@ int main(int argc, char *argv[])
 #ifdef _OPENMP // in case the compiler doesn't have openmp
         int omp_threads = atoi(argv[2]);
         omp_set_num_threads(omp_threads);
-        printf("DEBUG: num threads: %d\n", omp_threads);
 #endif
 
         inputArray = readIntArrayFromFile(inputFileName, inputArraySize);
         if (!inputArray)
         {
-            fprintf(stderr, "Could not read array from file %s\n", inputFileName);
+            fprintf(stderr, "Could not read array from file %s. File may be empty or not exist\n", inputFileName);
             MPI_Abort(comm, 1);
         }
+
+        // initial info
+        printf("\nInput file = \"%s\" OpenMPI numProcessors = %d", inputFileName, nproc);
+#ifdef _OPENMP
+        printf(", OpenMP numThreads = %d\n", omp_threads);
+#else
+        printf("\n");
+#endif
 
         // print the array
         printArray("Initial", inputArray, inputArraySize);
@@ -386,7 +404,6 @@ int main(int argc, char *argv[])
 
     // since remainder is less than nproc, if the rank is less than the remainder, add 1 to it
     uint localArraySize = (rank < (int)remainder) ? baseLocalArraySize + 1 : baseLocalArraySize;
-    printf("localArraySize: %d\n", localArraySize);
 
     // Create a local count array to store the count of each digit for the current process
     uint *localCountArray = new uint[COUNT_ARRAY_SIZE];
@@ -495,11 +512,11 @@ int main(int argc, char *argv[])
 
         if (isSorted((int *)outputArray, inputArraySize))
         {
-            printf("The array is sorted.\n");
+            printf("\n\nThe array is sorted.\n");
         }
         else
         {
-            printf("The array is not sorted.\n");
+            printf("\n\nThe array is not sorted.\n");
             MPI_Abort(comm, 1);
         }
 
