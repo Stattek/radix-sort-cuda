@@ -10,6 +10,7 @@
 #include <cmath>
 #include <fstream>
 #include <string.h>
+#include <vector>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -20,64 +21,6 @@
 #define NUM_DIGITS 10
 #define COUNT_ARRAY_SIZE NUM_DIGITS // the count array will always hold the same number of values as the number of digits
 #define INITIAL_ARRAY_SIZE 20
-
-/**
- * @brief Reads an integer array from a file.
- *
- * @param fileName The name of the file to read from.
- * @param output The output array.
- * @param outputLength The length of the output array.
- * @note The output array is allocated on the heap and MUST be deallocated by the user.
- *
- * @returns True on failure, false on success.
- */
-static inline bool
-readIntArrayFromFile(const char *fileName, int *output, int &outputLength)
-{
-    if (!fileName)
-    {
-        // bad argument
-        return true;
-    }
-    output = (int *)malloc(sizeof(int) * INITIAL_ARRAY_SIZE);
-    if (!output)
-    {
-        // could not allocate
-        return true; // fail
-    }
-    outputLength = INITIAL_ARRAY_SIZE; // contiguous size on heap
-    int outputNumElements = 0;
-
-    // since this can fail when reading from input
-    try
-    {
-        std::ifstream inputFile(fileName, std::ios_base::in);
-        int curInt;
-        while (inputFile >> curInt)
-        {
-            if (outputNumElements >= outputLength)
-            {
-                // we have to resize the array
-                outputLength *= 2; // double the length of the array
-                output = (int *)realloc(output, sizeof(int) * outputLength);
-                if (!output)
-                {
-                    // could not allocate
-                    return true;
-                }
-            }
-
-            output[outputLength] = curInt;
-            outputNumElements++;
-        }
-    }
-    catch (...)
-    {
-        return true; // fail
-    }
-
-    return false; // success
-}
 
 /**
  * @brief Finds the maxmimum value in an array at a digit and outputs it.
@@ -96,13 +39,14 @@ static bool getMax(const int *array, const int arrayLen, int *output)
         return true; // fail
     }
 
-    int maxValue = 0;
+    int maxValue = array[0];
     // find the maximum
-
-#pragma omp parallel for reduction(max : maxValue)
-    for (int i = 0; i < arrayLen; i++)
+    for (int i = 1; i < arrayLen; i++)
     {
-        maxValue = array[i];
+        if (maxValue < array[i])
+        {
+            maxValue = array[i];
+        }
     }
 
     *output = maxValue;
@@ -117,7 +61,7 @@ static bool getMax(const int *array, const int arrayLen, int *output)
  */
 static int getNumDigits(int value)
 {
-    int numDigits = 0;
+    int numDigits = 1; // we should start at one
     value /= NUM_DIGITS;
     while (value > 0)
     {
@@ -151,6 +95,50 @@ static void printArray(const char *name, int *array, int arrayLen)
         }
         printf("]\n");
     }
+}
+
+/**
+ * @brief Reads an integer array from a file.
+ *
+ * @param fileName The name of the file to read from.
+ * @param outputNumElements The length of the output array.
+ * @note The output array is allocated on the heap and MUST be deallocated by the user.
+ *
+ * @returns True on failure, false on success.
+ */
+static int *readIntArrayFromFile(const char *fileName, int &outputNumElements)
+{
+    if (!fileName)
+    {
+        // bad argument
+        return NULL;
+    }
+
+    std::vector<int> output;
+
+    // since this can fail when reading from input
+    try
+    {
+        std::ifstream inputFile(fileName, std::ios_base::in);
+        int curInt;
+        while (inputFile >> curInt)
+        {
+            output.push_back(curInt);
+        }
+    }
+    catch (...)
+    {
+        return NULL; // fail
+    }
+
+    int *outputPointer = new int[output.size()];
+    for (int i = 0; i < (int)output.size(); i++)
+    {
+        outputPointer[i] = output[i];
+    }
+    outputNumElements = output.size();
+
+    return outputPointer; // success
 }
 
 /**
@@ -213,8 +201,10 @@ static void computeOffsets(int **countMatrix, int numSections, int numValues, in
             {
                 offsetMatrix[m][n] += countMatrix[j][n];
             }
+#if 0
             // Debug print to check offsetMatrix values
             // printf("OffsetMatrix[%d][%d] = %d\n", m, n, offsetMatrix[m][n]);
+#endif
         }
     }
 }
@@ -333,21 +323,22 @@ int main(int argc, char *argv[])
         const char *inputFileName = argv[1];
 
 #ifdef _OPENMP // in case the compiler doesn't have openmp
-        int omp_threads = atoi(argv[3]);
+        int omp_threads = atoi(argv[2]);
         omp_set_num_threads(omp_threads);
         printf("DEBUG: num threads: %d\n", omp_threads);
 #endif
+
+        inputArray = readIntArrayFromFile(inputFileName, inputArraySize);
+        if (!inputArray)
+        {
+            fprintf(stderr, "Could not read array from file %s\n", inputFileName);
+            MPI_Abort(comm, 1);
+        }
 
         outputArray = new int[inputArraySize];
         for (int i = 0; i < inputArraySize; i++)
         {
             outputArray[i] = 0; // Initialize with a default value
-        }
-
-        if (readIntArrayFromFile(inputFileName, inputArray, inputArraySize))
-        {
-            fprintf(stderr, "Could not read array from file %s\n", inputFileName);
-            MPI_Abort(comm, 1);
         }
 
         int maxValue;
@@ -367,6 +358,7 @@ int main(int argc, char *argv[])
     }
 
     MPI_Bcast(&inputArraySize, 1, MPI_INT, 0, comm);
+    MPI_Bcast(&maxPossibleValue, 1, MPI_INT, 0, comm);
 
     // the base size of our local array
     int baseLocalArraySize = inputArraySize / nproc;
@@ -385,7 +377,6 @@ int main(int argc, char *argv[])
     int *localArray = new int[localArraySize];
 
     // TODO: use 2d representation of matrices instead of doing this weird stuff to work with MPI
-
     // Output Array
     // Allocate countMatrix and offsetMatrix as contiguous blocks
     int *flatCountMatrix = new int[nproc * COUNT_ARRAY_SIZE];
