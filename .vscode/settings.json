@@ -12,6 +12,10 @@
         "string_view": "c",
         "initializer_list": "c",
         "stdio.h": "c",
-        "stdbool.h": "c"
+        "stdbool.h": "c",
+        "random": "cpp",
+        "cmath": "cpp",
+        "new": "cpp",
+        "iostream": "cpp"
     }
 }
