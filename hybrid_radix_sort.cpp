@@ -1,6 +1,6 @@
 /*
- * Compile: mpic++ -Wall radix_sort_mpi.cpp -o rsort_mpi.out -fopenmp
- * Run: mpirun -np <num_processes> ./rsort_mpi.out <sizeOfArray> <#Digits> <Omp_threads>
+ * Compile: mpic++ -Wall hybrid_radix_sort.cpp -o hybrid_radix_sort.out -fopenmp
+ * Run: mpirun -np <num_processes> ./hybrid_radix_sort.out <input_file_name> <omp_num_threads>
  */
 
 #include <mpi.h>
