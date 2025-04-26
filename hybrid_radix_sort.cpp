@@ -40,10 +40,12 @@ static bool getMax(const uint *array, const uint arrayLen, uint *output)
     }
 
     uint maxValue = array[0];
-    // find the maximum
-    // NOTE: why was the OMP reduction not working here?
+// find the maximum
+// NOTE: why was the OMP reduction not working here?
+#pragma omp parallel for
     for (uint i = 1; i < arrayLen; i++)
     {
+#pragma omp critical
         if (maxValue < array[i])
         {
             maxValue = array[i];
@@ -438,9 +440,8 @@ int main(int argc, char *argv[])
     tempSendRecvCounts = new int[nproc];
     tempDisplacements = new int[nproc];
 
-    // NOTE: cannot parallelize due to a dependency on the last iteration
     int curDisplacement = 0; // the current displacement
-
+    // NOTE: cannot parallelize with OMP due to a dependency on the last iteration
     // iterate through process ranks
     for (int i = 0; i < nproc; i++)
     {
@@ -460,7 +461,9 @@ int main(int argc, char *argv[])
         curDisplacement += tempSendRecvCounts[i];
     }
 
-    // NOTE: do not parallelize anything that calls MPI functions
+    double startTime = MPI_Wtime();
+
+    // NOTE: do not parallelize anything with MP that calls MPI functions
     for (uint digit = 1; digit < maxPossibleValue; digit *= NUM_DIGITS)
     {
         // scatter the input array into local arrays
@@ -503,6 +506,9 @@ int main(int argc, char *argv[])
 
     MPI_Barrier(comm); // Ensure all processes are done
 
+    // save time
+    double elapsedTime = MPI_Wtime() - startTime;
+
     if (rank == 0)
     {
 
@@ -512,7 +518,7 @@ int main(int argc, char *argv[])
 
         if (isSorted((int *)outputArray, inputArraySize))
         {
-            printf("\n\nThe array is sorted.\n");
+            printf("\n\nThe array is sorted in %lf second(s).\n", elapsedTime);
         }
         else
         {
