@@ -124,10 +124,7 @@ static uint *readIntArrayFromFile(const char *fileName, uint &outputNumElements)
         int curInt;
         while (inputFile >> curInt)
         {
-            printf("DEBUG: curint before: %d\n", curInt);
-
             output.push_back((uint)curInt);
-            printf("DEBUG: curint after: %d\n", output[output.size() - 1]);
         }
     }
     catch (...)
@@ -389,6 +386,7 @@ int main(int argc, char *argv[])
 
     // since remainder is less than nproc, if the rank is less than the remainder, add 1 to it
     uint localArraySize = (rank < (int)remainder) ? baseLocalArraySize + 1 : baseLocalArraySize;
+    printf("localArraySize: %d\n", localArraySize);
 
     // Create a local count array to store the count of each digit for the current process
     uint *localCountArray = new uint[COUNT_ARRAY_SIZE];
@@ -413,7 +411,7 @@ int main(int argc, char *argv[])
     uint *flatOffsetMatrix = new uint[nproc * COUNT_ARRAY_SIZE];
     uint **offsetMatrix = new uint *[nproc];
 #pragma omp parallel for
-    for (uint i = 0; i < nproc; i++)
+    for (int i = 0; i < nproc; i++)
     {
         offsetMatrix[i] = &flatOffsetMatrix[i * COUNT_ARRAY_SIZE];
     }
@@ -425,13 +423,15 @@ int main(int argc, char *argv[])
 
     // NOTE: cannot parallelize due to a dependency on the last iteration
     int curDisplacement = 0; // the current displacement
+
+    // iterate through process ranks
     for (int i = 0; i < nproc; i++)
     {
         // set up the temp receive counts array and calculate their values if
         // there is a remainder
-        if (rank < (int)remainder)
+        if (i < (int)remainder) // current process rank is less than remainder
         {
-            tempSendRecvCounts[i] = baseLocalArraySize + 1;
+            tempSendRecvCounts[i] = (int)baseLocalArraySize + 1;
         }
         else
         {
@@ -500,6 +500,7 @@ int main(int argc, char *argv[])
         else
         {
             printf("The array is not sorted.\n");
+            MPI_Abort(comm, 1);
         }
 
         // delete values for rank 0
