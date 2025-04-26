@@ -229,7 +229,7 @@ static void computeOffsets(int **countMatrix, int numSections, int numValues, in
  * @param offsets The offsets array to modify.
  * @param digit The current digit to compute for.
  */
-static void computeLocalOffsets(const int const *localArray, const int localArraySize, const int const *const *offsetMatrix,
+static void computeLocalOffsets(const int *localArray, const int localArraySize, int **offsetMatrix,
                                 const int numValues, const int rank, int *offsets, const int digit)
 {
     // Create a local copy of the offsets for the current process to track updates
@@ -283,7 +283,7 @@ static void placeValuesFromOffset(int *localArray, int localArraySize, int *offs
  * @param localArraySize The local array size.
  * @param digit The current digit to update the count matrix on.
  */
-static void updateCountMatrix(int *countMatrix, const int const *localArray, const int localArraySize, const int digit)
+static void updateCountMatrix(int *countMatrix, const int *localArray, const int localArraySize, const int digit)
 {
     // Reset the count matrix for the current process
     (void)memset(countMatrix, 0, sizeof(int) * COUNT_ARRAY_SIZE);
