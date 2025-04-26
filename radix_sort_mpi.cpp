@@ -8,31 +8,123 @@
 #include <stdlib.h>
 #include <iostream>
 #include <cmath>
+#include <fstream>
 
 #ifdef _OPENMP
 #include <omp.h>
 #endif
 
 #define ARRAY_PRINT_THRESHOLD 20
-#define COUNT_ARRAY_SIZE 10 // the count array will always hold 10 values because there are 10 possible digits
+
+#define NUM_DIGITS 10
+#define COUNT_ARRAY_SIZE NUM_DIGITS // the count array will always hold the same number of values as the number of digits
+#define INITIAL_ARRAY_SIZE 20
 
 /**
- * @brief Generates a random array of values.
+ * @brief Reads an integer array from a file.
  *
- * @param array The input array to modify. This array MUST EXIST.
- * @param arrayLen The length of the array.
- * @param maxVal The maximum value to generate.
+ * @param fileName The name of the file to read from.
+ * @param output The output array.
+ * @param outputLength The length of the output array.
+ * @note The output array is allocated on the heap and MUST be deallocated by the user.
+ *
+ * @returns True on failure, false on success.
  */
-static inline void generateRandomArray(int *array, int arrayLen, int maxVal)
+static inline bool
+readIntArrayFromFile(const char *fileName, int *output, int &outputLength)
 {
-    srand(time(0));
+    if (!fileName)
+    {
+        // bad argument
+        return true;
+    }
+    output = (int *)malloc(sizeof(int) * INITIAL_ARRAY_SIZE);
+    if (!output)
+    {
+        // could not allocate
+        return true; // fail
+    }
+    outputLength = INITIAL_ARRAY_SIZE; // contiguous size on heap
+    int outputNumElements = 0;
 
-    printf("DEBUG: right before generating");
-#pragma omp parallel for
+    // since this can fail when reading from input
+    try
+    {
+        std::ifstream inputFile(fileName, std::ios_base::in);
+        int curInt;
+        while (inputFile >> curInt)
+        {
+            if (outputNumElements >= outputLength)
+            {
+                // we have to resize the array
+                outputLength *= 2; // double the length of the array
+                output = (int *)realloc(output, sizeof(int) * outputLength);
+                if (!output)
+                {
+                    // could not allocate
+                    return true;
+                }
+            }
+
+            output[outputLength] = curInt;
+            outputNumElements++;
+        }
+    }
+    catch (...)
+    {
+        return true; // fail
+    }
+
+    return false; // success
+}
+
+/**
+ * @brief Finds the maxmimum value in an array at a digit and outputs it.
+ *
+ * @param array The array to search.
+ * @param arrayLen The length of the array.
+ * @param digit The digit to find the maximum value for.
+ * @param output The output maximum value.
+ *
+ * @returns `true` on failure, `false` on success.
+ */
+static bool getMax(const int *array, const int arrayLen, int *output)
+{
+    if (!array || !output)
+    {
+        return true; // fail
+    }
+
+    int maxValue = 0;
+    // find the maximum
+
+#pragma omp parallel for reduction(max : maxValue)
     for (int i = 0; i < arrayLen; i++)
     {
-        array[i] = rand() % maxVal;
+        maxValue = array[i];
     }
+
+    *output = maxValue;
+    return false; // success
+}
+
+/**
+ * @brief Gets the number of digits that this value has.
+ *
+ * @param value The value to find the number of digits of.
+ * @return The number of digits.
+ */
+static int getNumDigits(int value)
+{
+    int numDigits = 0;
+    value /= NUM_DIGITS;
+    while (value > 0)
+    {
+        numDigits++;
+        value /= NUM_DIGITS;
+    }
+
+    return numDigits;
 }
 
 /**
@@ -151,7 +243,7 @@ static void computeLocalOffsets(const int const *localArray, const int localArra
     // Assign indexes to each value in the local array
     for (int i = 0; i < localArraySize; i++)
     {
-        int value = (localArray[i] / digit) % 10;
+        int value = (localArray[i] / digit) % NUM_DIGITS;
         offsets[i] = localOffsets[value]; // Assign the current offset for the value
         localOffsets[value]++;            // Increment the offset for the next occurrence
 
@@ -200,7 +292,7 @@ static void updateCountMatrix(int *countMatrix, const int const *localArray, con
 #pragma omp parallel for
     for (int i = 0; i < localArraySize; i++)
     {
-        int digitValue = (localArray[i] / digit) % 10;
+        int digitValue = (localArray[i] / digit) % NUM_DIGITS;
 #pragma omp critical
         {
             countMatrix[digitValue]++;
@@ -231,14 +323,13 @@ int main(int argc, char *argv[])
     /* radix sort setup */
     if (rank == 0)
     {
-        if (argc != 4)
+        if (argc != 3)
         {
-            printf("Usage: %s <sizeOfArray> <#Digits> <Omp threads>\n", argv[0]);
-            return -1;
+            printf("Usage: %s <input_file_name> <omp_num_threads>\n", argv[0]);
+            MPI_Abort(comm, 1);
         }
 
-        inputArraySize = atoi(argv[1]);
-        maxDigit = atoi(argv[2]);
+        const char *inputFileName = argv[1];
 
 #ifdef _OPENMP // in case the compiler doesn't have openmp
         int omp_threads = atoi(argv[3]);
@@ -246,18 +337,32 @@ int main(int argc, char *argv[])
         printf("DEBUG: num threads: %d\n", omp_threads);
 #endif
 
-        // FIXME: evil max possible value, don't like this
-        maxPossibleValue = (maxDigit > 9) ? __INT_MAX__ : (int)(pow(10, maxDigit));
-
         outputArray = new int[inputArraySize];
         for (int i = 0; i < inputArraySize; i++)
         {
             outputArray[i] = 0; // Initialize with a default value
         }
 
-        inputArray = new int[inputArraySize];
-        generateRandomArray(inputArray, inputArraySize, maxPossibleValue);
+        if (readIntArrayFromFile(inputFileName, inputArray, inputArraySize))
+        {
+            fprintf(stderr, "Could not read array from file %s\n", inputFileName);
+            MPI_Abort(comm, 1);
+        }
+
+        int maxValue;
+        if (getMax(inputArray, inputArraySize, &maxValue))
+        {
+            fprintf(stderr, "Could not get the maximum value in the input array\n");
+            MPI_Abort(comm, 1);
+        }
+
+        // find out the number of digits in this maximum value
+        maxDigit = getNumDigits(maxValue);
+
         printArray("Initial", inputArray, inputArraySize);
+
+        // FIXME: evil max possible value, don't like this
+        maxPossibleValue = (maxDigit > 9) ? __INT_MAX__ : (int)(pow(NUM_DIGITS, maxDigit));
     }
 
     MPI_Bcast(&inputArraySize, 1, MPI_INT, 0, comm);
@@ -324,7 +429,7 @@ int main(int argc, char *argv[])
     }
 
     // NOTE: do not parallelize anything that calls MPI functions
-    for (int digit = 1; digit < maxPossibleValue; digit *= 10)
+    for (int digit = 1; digit < maxPossibleValue; digit *= NUM_DIGITS)
     {
         // scatter the input array into local arrays
         MPI_Scatterv(inputArray, tempSendRecvCounts, tempDisplacements, MPI_INT, localArray, localArraySize, MPI_INT, 0, comm);
@@ -380,12 +485,14 @@ int main(int argc, char *argv[])
             printf("The array is not sorted.\n");
         }
 
+        // delete values for rank 0
         delete[] inputArray;
         inputArray = NULL;
         delete[] outputArray;
         outputArray = NULL;
     }
 
+    // delete shared values
     delete[] tempSendRecvCounts;
     tempSendRecvCounts = NULL;
     delete[] tempDisplacements;
