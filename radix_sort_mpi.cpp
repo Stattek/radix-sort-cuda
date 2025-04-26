@@ -174,7 +174,7 @@ static void computeLocalOffsets(const int const *localArray, const int localArra
  * @param offsets The offsets array.
  * @param globalArray The global array to place values into their correct positions.
  */
-static void moveValues(int *localArray, int localArraySize, int *offsets, int *globalArray)
+static void placeValuesFromOffset(int *localArray, int localArraySize, int *offsets, int *globalArray)
 {
 #pragma omp parallel for
     for (int i = 0; i < localArraySize; i++)
@@ -273,7 +273,7 @@ int main(int argc, char *argv[])
     int *localCountArray = new int[COUNT_ARRAY_SIZE];
 
     // Create a local offset array to store the offsets for the current process
-    int *localOffsetArray = new int[localArraySize]();
+    int *localOffsetArray = new int[localArraySize];
 
     // local array to sort
     int *localArray = new int[localArraySize];
@@ -352,7 +352,7 @@ int main(int argc, char *argv[])
         // do the move values
         if (rank == 0)
         {
-            moveValues(inputArray, inputArraySize, tempOffsetArray, outputArray);
+            placeValuesFromOffset(inputArray, inputArraySize, tempOffsetArray, outputArray);
             // Copy the output array back to the input array for the next iteration
             for (int i = 0; i < inputArraySize; i++)
             {
@@ -381,14 +381,29 @@ int main(int argc, char *argv[])
         }
 
         delete[] inputArray;
+        inputArray = NULL;
         delete[] outputArray;
+        outputArray = NULL;
     }
 
+    delete[] tempSendRecvCounts;
+    tempSendRecvCounts = NULL;
+    delete[] tempDisplacements;
+    tempDisplacements = NULL;
+    delete[] localCountArray;
+    localCountArray = NULL;
+    delete[] localOffsetArray;
+    localOffsetArray = NULL;
     delete[] flatCountMatrix;
+    flatCountMatrix = NULL;
     delete[] countMatrix;
+    countMatrix = NULL;
     delete[] flatOffsetMatrix;
+    flatOffsetMatrix = NULL;
     delete[] offsetMatrix;
+    offsetMatrix = NULL;
     delete[] localArray;
+    localArray = NULL;
 
     MPI_Finalize();
     return 0;
