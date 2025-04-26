@@ -9,6 +9,7 @@
 #include <iostream>
 #include <cmath>
 #include <fstream>
+#include <string.h>
 
 #ifdef _OPENMP
 #include <omp.h>
