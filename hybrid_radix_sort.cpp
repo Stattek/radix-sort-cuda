@@ -59,7 +59,7 @@ static bool getMax(const uint *array, const uint arrayLen, uint *output)
 static unsigned long long myPow(uint first, uint exponent)
 {
     unsigned long long sum = 1;
-    for (int i = 0; i < exponent; i++)
+    for (uint i = 0; i < exponent; i++)
     {
         sum *= first;
     }
