@@ -203,13 +203,13 @@ static bool isSorted(int *array, uint arrayLen)
  * @param numValues The number of values per section.
  * @param offsetMatrix The offset matrix.
  */
-static void computeOffsets(uint *countMatrix, uint numSections, int *displacements, int *numValues, uint *offsetMatrix)
+static void computeOffsets(uint *countMatrix, uint numSections, int *displacements, int numValues, uint *offsetMatrix)
 {
 // Initialize the offset matrix
 #pragma omp parallel for
     for (uint m = 0; m < numSections; m++)
     {
-        for (uint n = 0; n < numValues[m]; n++)
+        for (uint n = 0; n < numValues; n++)
         {
 
             printf("DEBUG: did we get here7\n");
@@ -492,7 +492,7 @@ int main(int argc, char *argv[])
 
         printf("DEBUG: did we get here3\n");
         // compute offsets
-        computeOffsets(countMatrix, nproc, tempDisplacements, tempSendRecvCounts, offsetMatrix);
+        computeOffsets(countMatrix, nproc, tempDisplacements, COUNT_ARRAY_SIZE, offsetMatrix);
         printArray("DEBUG:matrix", countMatrix, nproc * COUNT_ARRAY_SIZE);
 
         printf("DEBUG: did we get here4\n");
