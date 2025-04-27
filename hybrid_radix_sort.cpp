@@ -203,13 +203,13 @@ static bool isSorted(int *array, uint arrayLen)
  * @param numValues The number of values per section.
  * @param offsetMatrix The offset matrix.
  */
-static void computeOffsets(uint *countMatrix, uint numSections, int *displacements, uint *offsetMatrix)
+static void computeOffsets(uint *countMatrix, uint numSections, int *displacements, int *numValues, uint *offsetMatrix)
 {
 // Initialize the offset matrix
 #pragma omp parallel for
     for (uint m = 0; m < numSections; m++)
     {
-        for (uint n = 0; n < displacements[m]; n++)
+        for (uint n = 0; n < numValues[m]; n++)
         {
 
             printf("DEBUG: did we get here7\n");
@@ -224,6 +224,9 @@ static void computeOffsets(uint *countMatrix, uint numSections, int *displacemen
                     offsetMatrix[displacements[m] + n] += countMatrix[displacements[j] + i];
                 }
             }
+
+            printArray("DEBUG:offsetmatrix", offsetMatrix, numSections * COUNT_ARRAY_SIZE);
+            printArray("DEBUG:countmatrix", countMatrix, numSections * COUNT_ARRAY_SIZE);
 
             // Second term: Sum of counts for value n in all sections < m
             for (uint j = 0; j < m; j++)
@@ -440,6 +443,7 @@ int main(int argc, char *argv[])
     // Allocate countMatrix and offsetMatrix as contiguous blocks
     uint *countMatrix = new uint[nproc * COUNT_ARRAY_SIZE];
     uint *offsetMatrix = new uint[nproc * COUNT_ARRAY_SIZE];
+    memset(offsetMatrix, 0, sizeof(uint) * nproc * COUNT_ARRAY_SIZE);
 
     // set up the temporary arrays to be able to do scatters and gathers
     // set up the temp arrays
@@ -488,7 +492,7 @@ int main(int argc, char *argv[])
 
         printf("DEBUG: did we get here3\n");
         // compute offsets
-        computeOffsets(countMatrix, nproc, tempDisplacements, offsetMatrix);
+        computeOffsets(countMatrix, nproc, tempDisplacements, tempSendRecvCounts, offsetMatrix);
         printArray("DEBUG:matrix", countMatrix, nproc * COUNT_ARRAY_SIZE);
 
         printf("DEBUG: did we get here4\n");
