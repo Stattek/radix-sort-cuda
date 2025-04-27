@@ -64,6 +64,7 @@ static bool getMax(const uint *array, const uint arrayLen, uint *output)
 static unsigned long long myPow(uint value, uint exponent)
 {
     unsigned long long sum = 1;
+#pragma omp parallel for reduction(* : sum)
     for (uint i = 0; i < exponent; i++)
     {
         sum *= value;
