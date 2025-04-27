@@ -42,10 +42,8 @@ static bool getMax(const uint *array, const uint arrayLen, uint *output)
     uint maxValue = array[0];
 // find the maximum
 // NOTE: why was the OMP reduction not working here?
-#pragma omp parallel for
     for (uint i = 1; i < arrayLen; i++)
     {
-#pragma omp critical
         if (maxValue < array[i])
         {
             maxValue = array[i];
@@ -56,12 +54,19 @@ static bool getMax(const uint *array, const uint arrayLen, uint *output)
     return false; // success
 }
 
-static unsigned long long myPow(uint first, uint exponent)
+/**
+ * @brief Finds the power of a value.
+ *
+ * @param value The value to find power of.
+ * @param exponent The exponent.
+ * @return The result of value to the power of exponent.
+ */
+static unsigned long long myPow(uint value, uint exponent)
 {
     unsigned long long sum = 1;
     for (uint i = 0; i < exponent; i++)
     {
-        sum *= first;
+        sum *= value;
     }
 
     return sum;
