@@ -477,40 +477,97 @@ int main(int argc, char *argv[])
         tempDisplacements[i] = curDisplacement;
         curDisplacement += tempSendRecvCounts[i];
     }
-
+    double sTime= 0;
+    double eTime = 0;
+    std::vector<double> timings(8, 0.0);
     double startTime = MPI_Wtime();
 
     // NOTE: do not parallelize anything with MP that calls MPI functions
     for (unsigned long long digit = 1; digit < maxPossibleValue; digit *= NUM_BASE)
     {
+        if (rank == 0) sTime = MPI_Wtime();
         // scatter the input array into local arrays
         MPI_Scatterv(inputArray, tempSendRecvCounts, tempDisplacements, MPI_UNSIGNED, localArray, (int)localArraySize, MPI_UNSIGNED, 0, comm);
+        if (rank == 0) {
+            eTime = MPI_Wtime() - sTime;
+            timings[0] += eTime;
+            printf("\n\nScatter time: %lf\n", eTime);
+        }
 
+        if (rank == 0) sTime = MPI_Wtime();
         // update the local count array as the matrix
         updateCountMatrix(localCountArray, localArray, localArraySize, digit);
+        if (rank == 0) {
+            eTime = MPI_Wtime() - sTime;
+            timings[1] += eTime;
+            printf("Update count matrix time: %lf\n", eTime);
+        }
 
+        if (rank == 0) sTime = MPI_Wtime();
         // Gather localCountArray into flatCountMatrix
         MPI_Gather(localCountArray, COUNT_ARRAY_SIZE, MPI_UNSIGNED,
-                   flatCountMatrix, COUNT_ARRAY_SIZE, MPI_UNSIGNED, 0, comm);
+               flatCountMatrix, COUNT_ARRAY_SIZE, MPI_UNSIGNED, 0, comm);
+        if (rank == 0) {
+            eTime = MPI_Wtime() - sTime;
+            timings[2] += eTime;
+            printf("Gather count matrix time: %lf\n", eTime);
+        }
 
+        if (rank == 0) sTime = MPI_Wtime();
         MPI_Bcast(flatCountMatrix, nproc * COUNT_ARRAY_SIZE, MPI_UNSIGNED, 0, comm);
+        if (rank == 0) {
+            eTime = MPI_Wtime() - sTime;
+            timings[3] += eTime;
+            printf("Broadcast count matrix time: %lf\n", eTime);
+        }
 
+        if (rank == 0) sTime = MPI_Wtime();
         // compute offsets
         computeOffsets(countMatrix, nproc, COUNT_ARRAY_SIZE, offsetMatrix);
+        if (rank == 0) {
+            eTime = MPI_Wtime() - sTime;
+            timings[4] += eTime;
+            printf("Compute offsets time: %lf\n", eTime);
+        }
 
+        if (rank == 0) sTime = MPI_Wtime();
         // gather offsetMatrix
         MPI_Gather(offsetMatrix[rank], COUNT_ARRAY_SIZE, MPI_UNSIGNED,
-                   flatOffsetMatrix, COUNT_ARRAY_SIZE, MPI_UNSIGNED, 0, comm);
-        MPI_Bcast(flatOffsetMatrix, nproc * COUNT_ARRAY_SIZE, MPI_UNSIGNED, 0, comm);
+               flatOffsetMatrix, COUNT_ARRAY_SIZE, MPI_UNSIGNED, 0, comm);
+        if (rank == 0) {
+            eTime = MPI_Wtime() - sTime;
+            timings[5] += eTime;
+            printf("Gather offset matrix time: %lf\n", eTime);
+        }
 
+        if (rank == 0) sTime = MPI_Wtime();
+        MPI_Bcast(flatOffsetMatrix, nproc * COUNT_ARRAY_SIZE, MPI_UNSIGNED, 0, comm);
+        if (rank == 0) {
+            eTime = MPI_Wtime() - sTime;
+            timings[6] += eTime;
+            printf("Broadcast offset matrix time: %lf\n", eTime);
+        }
+
+        if (rank == 0) sTime = MPI_Wtime();
         // compute local offsets
         computeLocalOffsets(localArray, localArraySize, offsetMatrix,
-                            COUNT_ARRAY_SIZE, rank, localOffsetArray, digit);
+            COUNT_ARRAY_SIZE, rank, localOffsetArray, digit);
+        if (rank == 0) {
+            eTime = MPI_Wtime() - sTime;
+            timings[7] += eTime;
+            printf("Compute local offsets time: %lf\n", eTime);
+        }
 
+        if (rank == 0) sTime = MPI_Wtime();
         uint *tempOffsetArray = new uint[inputArraySize];
         MPI_Gatherv(localOffsetArray, localArraySize, MPI_UNSIGNED, tempOffsetArray,
-                    tempSendRecvCounts, tempDisplacements, MPI_UNSIGNED, 0, comm);
+            tempSendRecvCounts, tempDisplacements, MPI_UNSIGNED, 0, comm);
+        if (rank == 0) {
+            eTime = MPI_Wtime() - sTime;
+            timings.push_back(eTime);
+            printf("Gather offsets time: %lf\n", eTime);
 
+        }
         // do the move values
         if (rank == 0)
         {
@@ -521,11 +578,32 @@ int main(int argc, char *argv[])
             outputArray = temp;
         }
 
+        
         delete[] tempOffsetArray;
         tempOffsetArray = NULL;
     }
 
     MPI_Barrier(comm); // Ensure all processes are done
+    if (rank == 0)
+    {
+        double totalTime = 0.0;
+        for (double t : timings)
+        {
+            totalTime += t;
+        }
+
+        printf("\nTiming breakdown (in seconds and percentages):\n");
+        printf("1. Scatter time: %lf (%.2f%%)\n", timings[0], (timings[0] / totalTime) * 100);
+        printf("2. Update count matrix time: %lf (%.2f%%)\n", timings[1], (timings[1] / totalTime) * 100);
+        printf("3. Gather count matrix time: %lf (%.2f%%)\n", timings[2], (timings[2] / totalTime) * 100);
+        printf("4. Broadcast count matrix time: %lf (%.2f%%)\n", timings[3], (timings[3] / totalTime) * 100);
+        printf("5. Compute offsets time: %lf (%.2f%%)\n", timings[4], (timings[4] / totalTime) * 100);
+        printf("6. Gather offset matrix time: %lf (%.2f%%)\n", timings[5], (timings[5] / totalTime) * 100);
+        printf("7. Broadcast offset matrix time: %lf (%.2f%%)\n", timings[6], (timings[6] / totalTime) * 100);
+        printf("8. Compute local offsets time: %lf (%.2f%%)\n", timings[7], (timings[7] / totalTime) * 100);
+        printf("9. Gather offsets time: %lf (%.2f%%)\n", timings[8], (timings[8] / totalTime) * 100);
+        printf("Total time: %lf seconds\n", totalTime);
+    }
     if (rank == 0 && maxPossibleValue > 1)
     {
         uint *temp = inputArray;
