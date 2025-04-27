@@ -282,7 +282,7 @@ static void computeLocalOffsets(const uint *localArray, const uint localArraySiz
  */
 static void placeValuesFromOffset(uint *localArray, uint localArraySize, uint *offsets, uint *globalArray)
 {
-#pragma omp parallel for if (localArraySize > 10000)
+#pragma omp parallel for
     for (uint i = 0; i < localArraySize; i++)
     {
         globalArray[offsets[i]] = localArray[i];
