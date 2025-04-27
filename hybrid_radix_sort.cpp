@@ -16,9 +16,9 @@
 #include <omp.h>
 #endif
 
-#define ARRAY_PRINT_THRESHOLD 256
+#define ARRAY_PRINT_THRESHOLD 20
 
-#define NUM_BASE 10
+#define NUM_BASE 256
 #define COUNT_ARRAY_SIZE NUM_BASE // the count array will always hold the same number of values as the number of digits
 #define INITIAL_ARRAY_SIZE 20
 
@@ -205,7 +205,7 @@ static bool isSorted(int *array, uint arrayLen)
  */
 static void computeOffsets(uint *countMatrix, uint numSections, int *displacements, int numValues, uint *offsetMatrix)
 {
-    
+
 // Initialize the offset matrix
 #pragma omp parallel for
     for (uint m = 0; m < numSections; m++)
@@ -213,31 +213,22 @@ static void computeOffsets(uint *countMatrix, uint numSections, int *displacemen
         for (uint n = 0; n < (uint)numValues; n++)
         {
 
-            // printf("DEBUG: did we get here7\n");
-            offsetMatrix[m*COUNT_ARRAY_SIZE + n] = 0;
-            // printf("DEBUG: did we get here8\n");
+            offsetMatrix[m * COUNT_ARRAY_SIZE + n] = 0;
 
             // First term: Sum of counts for all values < n in all sections
             for (uint i = 0; i < n; i++)
             {
                 for (uint j = 0; j < numSections; j++)
                 {
-                    offsetMatrix[m*COUNT_ARRAY_SIZE + n] += countMatrix[j*COUNT_ARRAY_SIZE + i];
+                    offsetMatrix[m * COUNT_ARRAY_SIZE + n] += countMatrix[j * COUNT_ARRAY_SIZE + i];
                 }
             }
-
-            // printArray("DEBUG:offsetmatrix", offsetMatrix, numSections * COUNT_ARRAY_SIZE);
-            // printArray("DEBUG:countmatrix", countMatrix, numSections * COUNT_ARRAY_SIZE);
 
             // Second term: Sum of counts for value n in all sections < m
             for (uint j = 0; j < m; j++)
             {
-                offsetMatrix[m*COUNT_ARRAY_SIZE + n] += countMatrix[j*COUNT_ARRAY_SIZE + n];
+                offsetMatrix[m * COUNT_ARRAY_SIZE + n] += countMatrix[j * COUNT_ARRAY_SIZE + n];
             }
-#if 0
-            // Debug print to check offsetMatrix values
-            // printf("OffsetMatrix[%d][%d] = %d\n", m, n, offsetMatrix[m][n]);
-#endif
         }
     }
 }
@@ -270,11 +261,6 @@ static void computeLocalOffsets(const uint *localArray, const uint localArraySiz
         uint value = (localArray[i] / digit) % NUM_BASE;
         offsets[i] = localOffsets[value]; // Assign the current offset for the value
         localOffsets[value]++;            // Increment the offset for the next occurrence
-
-#if 0
-        // Debug print to check offsets
-        printf("Process %d: Value %d assigned offset %d\n", rank, value, offsets[i]);
-#endif
     }
 
     delete[] localOffsets;
@@ -483,41 +469,27 @@ int main(int argc, char *argv[])
         // update the local count array as the matrix
         updateCountMatrix(localCountArray, localArray, localArraySize, digit);
 
-        printf("DEBUG: did we get here1\n");
         // Gather localCountArray into countMatrix
         MPI_Gather(localCountArray, COUNT_ARRAY_SIZE, MPI_UNSIGNED,
                    countMatrix, COUNT_ARRAY_SIZE, MPI_UNSIGNED, 0, comm);
 
-        printf("DEBUG: did we get here2\n");
         MPI_Bcast(countMatrix, nproc * COUNT_ARRAY_SIZE, MPI_UNSIGNED, 0, comm);
 
-        printf("DEBUG: did we get here3\n");
         // compute offsets
         computeOffsets(countMatrix, nproc, tempDisplacements, COUNT_ARRAY_SIZE, offsetMatrix);
-        printArray("DEBUG:matrix", countMatrix, nproc * COUNT_ARRAY_SIZE);
 
-        printf("DEBUG: did we get here4\n");
         // compute local offsets
         computeLocalOffsets(localArray, localArraySize, offsetMatrix,
                             COUNT_ARRAY_SIZE, rank, localOffsetArray, digit);
 
-        printf("DEBUG: did we get here5\n");
         uint *tempOffsetArray = new uint[inputArraySize];
         MPI_Gatherv(localOffsetArray, localArraySize, MPI_UNSIGNED, tempOffsetArray,
                     tempSendRecvCounts, tempDisplacements, MPI_UNSIGNED, 0, comm);
 
-        printf("DEBUG: did we get here99\n");
         // do the move values
         if (rank == 0)
         {
-            flipSignBits((int *)inputArray, inputArraySize);
-            printArray("DEBUG:inputarray", inputArray, inputArraySize);
-            flipSignBits((int *)inputArray, inputArraySize);
-            printArray("DEBUG:offsetarray", tempOffsetArray, inputArraySize);
-
-            printf("DEBUG: did we get here100\n");
             placeValuesFromOffset(inputArray, inputArraySize, tempOffsetArray, outputArray);
-            printf("DEBUG: did we get here101\n");
 
             // Swap inputArray and outputArray pointers
             uint *temp = inputArray;
