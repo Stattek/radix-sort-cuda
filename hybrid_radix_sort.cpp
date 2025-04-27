@@ -299,7 +299,7 @@ static void updateCountMatrix(uint *countMatrix, const uint *localArray, const u
     // Reset the count matrix for the current process
     (void)memset(countMatrix, 0, sizeof(uint) * COUNT_ARRAY_SIZE);
 
-// Count the occurrences of each digit at the current place value in the local array
+    // Count the occurrences of each digit at the current place value in the local array
     // NOTE: parallelizing this loop causes great slowdown
     for (uint i = 0; i < localArraySize; i++)
     {
