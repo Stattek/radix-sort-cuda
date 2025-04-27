@@ -18,8 +18,8 @@
 
 #define ARRAY_PRINT_THRESHOLD 20
 
-#define NUM_DIGITS 10
-#define COUNT_ARRAY_SIZE NUM_DIGITS // the count array will always hold the same number of values as the number of digits
+#define NUM_BASE 256
+#define COUNT_ARRAY_SIZE NUM_BASE // the count array will always hold the same number of values as the number of digits
 #define INITIAL_ARRAY_SIZE 20
 
 /**
@@ -56,6 +56,20 @@ static bool getMax(const uint *array, const uint arrayLen, uint *output)
     return false; // success
 }
 
+static unsigned long long myPow(uint first, uint exponent)
+{
+    unsigned long long sum = 1;
+    for (int i = 0; i < exponent; i++)
+    {
+        printf("DEBUG: sum=%llu\n", sum);
+        sum *= first;
+    }
+
+    printf("DEBUG: sum=%llu\n", sum);
+
+    return sum;
+}
+
 /**
  * @brief Gets the number of digits that this value has.
  *
@@ -65,11 +79,11 @@ static bool getMax(const uint *array, const uint arrayLen, uint *output)
 static uint getNumDigits(uint value)
 {
     uint numDigits = 1; // we should start at one
-    value /= NUM_DIGITS;
+    value /= NUM_BASE;
     while (value > 0)
     {
         numDigits++;
-        value /= NUM_DIGITS;
+        value /= NUM_BASE;
     }
 
     return numDigits;
@@ -166,17 +180,12 @@ static uint *readIntArrayFromFile(const char *fileName, uint &outputNumElements)
 static bool isSorted(int *array, uint arrayLen)
 {
     bool output = true;
+#pragma omp parallel for
     for (uint i = 1; i < arrayLen; i++)
     {
         if (array[i - 1] > array[i])
         {
             output = false;
-            break;
-        }
-
-        if (!output)
-        {
-            break;
         }
     }
 
@@ -248,7 +257,7 @@ static void computeLocalOffsets(const uint *localArray, const uint localArraySiz
     // Assign indexes to each value in the local array
     for (uint i = 0; i < localArraySize; i++)
     {
-        uint value = (localArray[i] / digit) % NUM_DIGITS;
+        uint value = (localArray[i] / digit) % NUM_BASE;
         offsets[i] = localOffsets[value]; // Assign the current offset for the value
         localOffsets[value]++;            // Increment the offset for the next occurrence
 
@@ -273,7 +282,7 @@ static void computeLocalOffsets(const uint *localArray, const uint localArraySiz
  */
 static void placeValuesFromOffset(uint *localArray, uint localArraySize, uint *offsets, uint *globalArray)
 {
-#pragma omp parallel for
+#pragma omp parallel for if (localArraySize > 10000)
     for (uint i = 0; i < localArraySize; i++)
     {
         globalArray[offsets[i]] = localArray[i];
@@ -294,11 +303,11 @@ static void updateCountMatrix(uint *countMatrix, const uint *localArray, const u
     (void)memset(countMatrix, 0, sizeof(uint) * COUNT_ARRAY_SIZE);
 
 // Count the occurrences of each digit at the current place value in the local array
-#pragma omp parallel for
+    // NOTE: parallelizing this loop causes great slowdown
     for (uint i = 0; i < localArraySize; i++)
     {
-        uint digitValue = (localArray[i] / digit) % NUM_DIGITS;
-#pragma omp critical
+        uint digitValue = (localArray[i] / digit) % NUM_BASE;
+        // NOTE: this makes it really slow
         {
             countMatrix[digitValue]++;
         }
@@ -314,6 +323,7 @@ static void flipSignBits(int *array, uint arrayLength)
     mask = ~mask;
 
     // flip all the sign bits
+#pragma omp parallel for
     for (uint i = 0; i < arrayLength; i++)
     {
         array[i] ^= mask;
@@ -332,7 +342,8 @@ int main(int argc, char *argv[])
     MPI_Comm comm = MPI_COMM_WORLD;
 
     /* shared variables */
-    uint inputArraySize = 0, maxDigit = 0, maxPossibleValue = 0;
+    uint inputArraySize = 0, maxDigit = 0;
+    unsigned long long maxPossibleValue = 0;
     uint *inputArray = NULL;
     uint *outputArray = NULL;
 
@@ -378,10 +389,7 @@ int main(int argc, char *argv[])
         flipSignBits((int *)inputArray, inputArraySize);
 
         outputArray = new uint[inputArraySize];
-        for (uint i = 0; i < inputArraySize; i++)
-        {
-            outputArray[i] = 0; // Initialize with a default value
-        }
+        (void)memset(outputArray, 0, sizeof(uint) * inputArraySize);
 
         uint maxValue;
         if (getMax(inputArray, inputArraySize, &maxValue))
@@ -394,11 +402,11 @@ int main(int argc, char *argv[])
         maxDigit = getNumDigits(maxValue);
 
         // FIXME: evil max possible value, don't like this
-        maxPossibleValue = (maxDigit > 9) ? __INT_MAX__ : (uint)(pow(NUM_DIGITS, maxDigit));
+        maxPossibleValue = myPow(NUM_BASE, maxDigit);
     }
 
     MPI_Bcast(&inputArraySize, 1, MPI_UNSIGNED, 0, comm);
-    MPI_Bcast(&maxPossibleValue, 1, MPI_UNSIGNED, 0, comm);
+    MPI_Bcast(&maxPossibleValue, 1, MPI_UNSIGNED_LONG_LONG, 0, comm);
 
     // the base size of our local array
     uint baseLocalArraySize = inputArraySize / nproc;
@@ -464,7 +472,7 @@ int main(int argc, char *argv[])
     double startTime = MPI_Wtime();
 
     // NOTE: do not parallelize anything with MP that calls MPI functions
-    for (uint digit = 1; digit < maxPossibleValue; digit *= NUM_DIGITS)
+    for (unsigned long long digit = 1; digit < maxPossibleValue; digit *= NUM_BASE)
     {
         // scatter the input array into local arrays
         MPI_Scatterv(inputArray, tempSendRecvCounts, tempDisplacements, MPI_UNSIGNED, localArray, (int)localArraySize, MPI_UNSIGNED, 0, comm);
@@ -473,21 +481,26 @@ int main(int argc, char *argv[])
         updateCountMatrix(localCountArray, localArray, localArraySize, digit);
 
         // Gather localCountArray into flatCountMatrix
-        MPI_Gather(localCountArray, COUNT_ARRAY_SIZE, MPI_UNSIGNED, flatCountMatrix, COUNT_ARRAY_SIZE, MPI_UNSIGNED, 0, comm);
+        MPI_Gather(localCountArray, COUNT_ARRAY_SIZE, MPI_UNSIGNED,
+                   flatCountMatrix, COUNT_ARRAY_SIZE, MPI_UNSIGNED, 0, comm);
+
         MPI_Bcast(flatCountMatrix, nproc * COUNT_ARRAY_SIZE, MPI_UNSIGNED, 0, comm);
 
         // compute offsets
         computeOffsets(countMatrix, nproc, COUNT_ARRAY_SIZE, offsetMatrix);
 
         // gather offsetMatrix
-        MPI_Gather(offsetMatrix[rank], COUNT_ARRAY_SIZE, MPI_UNSIGNED, flatOffsetMatrix, COUNT_ARRAY_SIZE, MPI_UNSIGNED, 0, comm);
+        MPI_Gather(offsetMatrix[rank], COUNT_ARRAY_SIZE, MPI_UNSIGNED,
+                   flatOffsetMatrix, COUNT_ARRAY_SIZE, MPI_UNSIGNED, 0, comm);
         MPI_Bcast(flatOffsetMatrix, nproc * COUNT_ARRAY_SIZE, MPI_UNSIGNED, 0, comm);
 
         // compute local offsets
-        computeLocalOffsets(localArray, localArraySize, offsetMatrix, COUNT_ARRAY_SIZE, rank, localOffsetArray, digit);
+        computeLocalOffsets(localArray, localArraySize, offsetMatrix,
+                            COUNT_ARRAY_SIZE, rank, localOffsetArray, digit);
 
         uint *tempOffsetArray = new uint[inputArraySize];
-        MPI_Gatherv(localOffsetArray, localArraySize, MPI_UNSIGNED, tempOffsetArray, tempSendRecvCounts, tempDisplacements, MPI_UNSIGNED, 0, comm);
+        MPI_Gatherv(localOffsetArray, localArraySize, MPI_UNSIGNED, tempOffsetArray,
+                    tempSendRecvCounts, tempDisplacements, MPI_UNSIGNED, 0, comm);
 
         // do the move values
         if (rank == 0)
