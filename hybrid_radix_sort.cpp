@@ -203,34 +203,32 @@ static bool isSorted(int *array, uint arrayLen)
  * @param numValues The number of values per section.
  * @param offsetMatrix The offset matrix.
  */
-static void computeOffsets(uint **countMatrix, uint numSections, uint numValues, uint **offsetMatrix)
+static void computeOffsets(uint *countMatrix, uint numSections, int *displacements, int numValues, uint *offsetMatrix)
 {
+
 // Initialize the offset matrix
 #pragma omp parallel for
     for (uint m = 0; m < numSections; m++)
     {
-        for (uint n = 0; n < numValues; n++)
+        for (uint n = 0; n < (uint)numValues; n++)
         {
-            offsetMatrix[m][n] = 0;
+
+            offsetMatrix[m * COUNT_ARRAY_SIZE + n] = 0;
 
             // First term: Sum of counts for all values < n in all sections
             for (uint i = 0; i < n; i++)
             {
                 for (uint j = 0; j < numSections; j++)
                 {
-                    offsetMatrix[m][n] += countMatrix[j][i];
+                    offsetMatrix[m * COUNT_ARRAY_SIZE + n] += countMatrix[j * COUNT_ARRAY_SIZE + i];
                 }
             }
 
             // Second term: Sum of counts for value n in all sections < m
             for (uint j = 0; j < m; j++)
             {
-                offsetMatrix[m][n] += countMatrix[j][n];
+                offsetMatrix[m * COUNT_ARRAY_SIZE + n] += countMatrix[j * COUNT_ARRAY_SIZE + n];
             }
-#if 0
-            // Debug print to check offsetMatrix values
-            // printf("OffsetMatrix[%d][%d] = %d\n", m, n, offsetMatrix[m][n]);
-#endif
         }
     }
 }
@@ -246,7 +244,7 @@ static void computeOffsets(uint **countMatrix, uint numSections, uint numValues,
  * @param offsets The offsets array to modify.
  * @param digit The current digit to compute for.
  */
-static void computeLocalOffsets(const uint *localArray, const uint localArraySize, uint **offsetMatrix,
+static void computeLocalOffsets(const uint *localArray, const uint localArraySize, uint *offsetMatrix,
                                 const uint numValues, const uint rank, uint *offsets, const uint digit)
 {
     // Create a local copy of the offsets for the current process to track updates
@@ -254,7 +252,7 @@ static void computeLocalOffsets(const uint *localArray, const uint localArraySiz
 #pragma omp parallel for
     for (uint i = 0; i < numValues; i++)
     {
-        localOffsets[i] = offsetMatrix[rank][i];
+        localOffsets[i] = offsetMatrix[(rank * numValues) + i];
     }
 
     // Assign indexes to each value in the local array
@@ -263,11 +261,6 @@ static void computeLocalOffsets(const uint *localArray, const uint localArraySiz
         uint value = (localArray[i] / digit) % NUM_BASE;
         offsets[i] = localOffsets[value]; // Assign the current offset for the value
         localOffsets[value]++;            // Increment the offset for the next occurrence
-
-#if 0
-        // Debug print to check offsets
-        printf("Process %d: Value %d assigned offset %d\n", rank, value, offsets[i]);
-#endif
     }
 
     delete[] localOffsets;
@@ -433,24 +426,11 @@ int main(int argc, char *argv[])
     // local array to sort
     uint *localArray = new uint[localArraySize];
 
-    // TODO: use 2d representation of matrices instead of doing this weird stuff to work with MPI
     // Output Array
     // Allocate countMatrix and offsetMatrix as contiguous blocks
-    uint *flatCountMatrix = new uint[nproc * COUNT_ARRAY_SIZE];
-    uint **countMatrix = new uint *[nproc];
-#pragma omp parallel for
-    for (int i = 0; i < nproc; i++)
-    {
-        countMatrix[i] = &flatCountMatrix[i * COUNT_ARRAY_SIZE];
-    }
-
-    uint *flatOffsetMatrix = new uint[nproc * COUNT_ARRAY_SIZE];
-    uint **offsetMatrix = new uint *[nproc];
-#pragma omp parallel for
-    for (int i = 0; i < nproc; i++)
-    {
-        offsetMatrix[i] = &flatOffsetMatrix[i * COUNT_ARRAY_SIZE];
-    }
+    uint *countMatrix = new uint[nproc * COUNT_ARRAY_SIZE];
+    uint *offsetMatrix = new uint[nproc * COUNT_ARRAY_SIZE];
+    memset(offsetMatrix, 0, sizeof(uint) * nproc * COUNT_ARRAY_SIZE);
 
     // set up the temporary arrays to be able to do scatters and gathers
     // set up the temp arrays
@@ -489,14 +469,14 @@ int main(int argc, char *argv[])
         // update the local count array as the matrix
         updateCountMatrix(localCountArray, localArray, localArraySize, digit);
 
-        // Gather localCountArray into flatCountMatrix
+        // Gather localCountArray into countMatrix
         MPI_Gather(localCountArray, COUNT_ARRAY_SIZE, MPI_UNSIGNED,
-                   flatCountMatrix, COUNT_ARRAY_SIZE, MPI_UNSIGNED, 0, comm);
+                   countMatrix, COUNT_ARRAY_SIZE, MPI_UNSIGNED, 0, comm);
 
-        MPI_Bcast(flatCountMatrix, nproc * COUNT_ARRAY_SIZE, MPI_UNSIGNED, 0, comm);
+        MPI_Bcast(countMatrix, nproc * COUNT_ARRAY_SIZE, MPI_UNSIGNED, 0, comm);
 
         // compute offsets
-        computeOffsets(countMatrix, nproc, COUNT_ARRAY_SIZE, offsetMatrix);
+        computeOffsets(countMatrix, nproc, tempDisplacements, COUNT_ARRAY_SIZE, offsetMatrix);
 
         // compute local offsets
         computeLocalOffsets(localArray, localArraySize, offsetMatrix,
@@ -510,6 +490,7 @@ int main(int argc, char *argv[])
         if (rank == 0)
         {
             placeValuesFromOffset(inputArray, inputArraySize, tempOffsetArray, outputArray);
+
             // Swap inputArray and outputArray pointers
             uint *temp = inputArray;
             inputArray = outputArray;
@@ -566,12 +547,12 @@ int main(int argc, char *argv[])
     localCountArray = NULL;
     delete[] localOffsetArray;
     localOffsetArray = NULL;
-    delete[] flatCountMatrix;
-    flatCountMatrix = NULL;
     delete[] countMatrix;
     countMatrix = NULL;
-    delete[] flatOffsetMatrix;
-    flatOffsetMatrix = NULL;
+    delete[] countMatrix;
+    countMatrix = NULL;
+    delete[] offsetMatrix;
+    offsetMatrix = NULL;
     delete[] offsetMatrix;
     offsetMatrix = NULL;
     delete[] localArray;
