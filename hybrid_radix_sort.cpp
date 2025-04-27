@@ -283,7 +283,7 @@ static void computeLocalOffsets(const uint *localArray, const uint localArraySiz
  * @param offsets The offsets array.
  * @param globalArray The global array to place values into their correct positions.
  */
-static void placeValuesFromOffset(uint *localArray, uint localArraySize, uint *offsets, uint *globalArray)
+static inline void placeValuesFromOffset(uint *localArray, uint localArraySize, uint *offsets, uint *globalArray)
 {
 #pragma omp parallel for
     for (uint i = 0; i < localArraySize; i++)
@@ -479,7 +479,7 @@ int main(int argc, char *argv[])
     }
     double sTime= 0;
     double eTime = 0;
-    std::vector<double> timings(8, 0.0);
+    std::vector<double> timings(10, 0.0);
     double startTime = MPI_Wtime();
 
     // NOTE: do not parallelize anything with MP that calls MPI functions
@@ -564,11 +564,12 @@ int main(int argc, char *argv[])
             tempSendRecvCounts, tempDisplacements, MPI_UNSIGNED, 0, comm);
         if (rank == 0) {
             eTime = MPI_Wtime() - sTime;
-            timings.push_back(eTime);
+            timings[8] += eTime;
             printf("Gather offsets time: %lf\n", eTime);
 
         }
         // do the move values
+        if (rank == 0) sTime = MPI_Wtime();
         if (rank == 0)
         {
             placeValuesFromOffset(inputArray, inputArraySize, tempOffsetArray, outputArray);
@@ -577,6 +578,13 @@ int main(int argc, char *argv[])
             inputArray = outputArray;
             outputArray = temp;
         }
+        if (rank == 0) {
+            eTime = MPI_Wtime() - sTime;
+            timings[9] += (eTime);
+            printf("Move Values time: %lf\n", eTime);
+
+        }
+
 
         
         delete[] tempOffsetArray;
@@ -602,6 +610,7 @@ int main(int argc, char *argv[])
         printf("7. Broadcast offset matrix time: %lf (%.2f%%)\n", timings[6], (timings[6] / totalTime) * 100);
         printf("8. Compute local offsets time: %lf (%.2f%%)\n", timings[7], (timings[7] / totalTime) * 100);
         printf("9. Gather offsets time: %lf (%.2f%%)\n", timings[8], (timings[8] / totalTime) * 100);
+        printf("10. Move Values time: %lf (%.2f%%)\n", timings[9], (timings[9] / totalTime) * 100);
         printf("Total time: %lf seconds\n", totalTime);
     }
     if (rank == 0 && maxPossibleValue > 1)
