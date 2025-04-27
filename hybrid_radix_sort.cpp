@@ -40,8 +40,10 @@ static bool getMax(const uint *array, const uint arrayLen, uint *output)
     }
 
     uint maxValue = array[0];
-// find the maximum
-// NOTE: why was the OMP reduction not working here?
+    // find the maximum
+    // NOTE: why was the OMP reduction not working here?
+    double startTime1 = MPI_Wtime();
+
 #pragma omp parallel for
     for (uint i = 1; i < arrayLen; i++)
     {
@@ -51,6 +53,8 @@ static bool getMax(const uint *array, const uint arrayLen, uint *output)
             maxValue = array[i];
         }
     }
+    double elapsed1 = MPI_Wtime() - startTime1;
+    printf("DEBUG: elapsedtime for getmax =%lf sec\n", elapsed1);
 
     *output = maxValue;
     return false; // success
@@ -180,6 +184,7 @@ static uint *readIntArrayFromFile(const char *fileName, uint &outputNumElements)
 static bool isSorted(int *array, uint arrayLen)
 {
     bool output = true;
+    double startTime1 = MPI_Wtime();
 #pragma omp parallel for
     for (uint i = 1; i < arrayLen; i++)
     {
@@ -188,6 +193,8 @@ static bool isSorted(int *array, uint arrayLen)
             output = false;
         }
     }
+    double elapsed1 = MPI_Wtime() - startTime1;
+    printf("DEBUG: elapsedtime for issorted =%lf sec\n", elapsed1);
 
     return output;
 }
@@ -202,6 +209,8 @@ static bool isSorted(int *array, uint arrayLen)
  */
 static void computeOffsets(uint **countMatrix, uint numSections, uint numValues, uint **offsetMatrix)
 {
+    double startTime1 = MPI_Wtime();
+
 // Initialize the offset matrix
 #pragma omp parallel for
     for (uint m = 0; m < numSections; m++)
@@ -230,6 +239,9 @@ static void computeOffsets(uint **countMatrix, uint numSections, uint numValues,
 #endif
         }
     }
+
+    double elapsed1 = MPI_Wtime() - startTime1;
+    printf("DEBUG: elapsedtime for computeOffsets =%lf sec\n", elapsed1);
 }
 
 /**
@@ -282,11 +294,17 @@ static void computeLocalOffsets(const uint *localArray, const uint localArraySiz
  */
 static void placeValuesFromOffset(uint *localArray, uint localArraySize, uint *offsets, uint *globalArray)
 {
+    printArray("DEBUG:LOCALARRAY", localArray, localArraySize);
+    double startTime1 = MPI_Wtime();
+
 #pragma omp parallel for if (localArraySize > 10000)
     for (uint i = 0; i < localArraySize; i++)
     {
         globalArray[offsets[i]] = localArray[i];
     }
+    double elapsed = MPI_Wtime() - startTime1;
+
+    printf("DEBUG: elapsedtime for parallel fors placevaluesfromoffset =%lf sec\n", elapsed);
 }
 
 /**
@@ -302,7 +320,9 @@ static void updateCountMatrix(uint *countMatrix, const uint *localArray, const u
     // Reset the count matrix for the current process
     (void)memset(countMatrix, 0, sizeof(uint) * COUNT_ARRAY_SIZE);
 
-// Count the occurrences of each digit at the current place value in the local array
+    double startTime1 = MPI_Wtime();
+
+    // Count the occurrences of each digit at the current place value in the local array
     // NOTE: parallelizing this loop causes great slowdown
     for (uint i = 0; i < localArraySize; i++)
     {
@@ -312,6 +332,9 @@ static void updateCountMatrix(uint *countMatrix, const uint *localArray, const u
             countMatrix[digitValue]++;
         }
     }
+
+    double elapsed1 = MPI_Wtime() - startTime1;
+    printf("DEBUG: elapsedtime for parallel fors updatecountmatrix =%lf sec\n", elapsed1);
 }
 
 static void flipSignBits(int *array, uint arrayLength)
@@ -323,11 +346,15 @@ static void flipSignBits(int *array, uint arrayLength)
     mask = ~mask;
 
     // flip all the sign bits
+    double startTime1 = MPI_Wtime();
+
 #pragma omp parallel for
     for (uint i = 0; i < arrayLength; i++)
     {
         array[i] ^= mask;
     }
+    double elapsed1 = MPI_Wtime() - startTime1;
+    printf("DEBUG: elapsedtime for flipSignBits =%lf sec\n", elapsed1);
 }
 
 int main(int argc, char *argv[])
@@ -388,6 +415,8 @@ int main(int argc, char *argv[])
         // flip bits, then do the rest of the setup
         flipSignBits((int *)inputArray, inputArraySize);
 
+        printArray("DEBUG: AFTER FLIP", inputArray, inputArraySize);
+
         outputArray = new uint[inputArraySize];
         (void)memset(outputArray, 0, sizeof(uint) * inputArraySize);
 
@@ -401,6 +430,8 @@ int main(int argc, char *argv[])
         // find out the number of digits in this maximum value
         maxDigit = getNumDigits(maxValue);
 
+        printf("DEBUG: max value=%d, num digits=%d\n", maxDigit, maxDigit);
+
         // FIXME: evil max possible value, don't like this
         maxPossibleValue = myPow(NUM_BASE, maxDigit);
     }
@@ -411,6 +442,7 @@ int main(int argc, char *argv[])
     // the base size of our local array
     uint baseLocalArraySize = inputArraySize / nproc;
     uint remainder = inputArraySize % nproc; // remainder for the rest of the array
+    printf("DEBUG: baselocalarraysize=%d remainder=%d, maxPossibleVal=%lld\n", baseLocalArraySize, remainder, maxPossibleValue);
 
     // since remainder is less than nproc, if the rank is less than the remainder, add 1 to it
     uint localArraySize = (rank < (int)remainder) ? baseLocalArraySize + 1 : baseLocalArraySize;
@@ -429,6 +461,8 @@ int main(int argc, char *argv[])
     // Allocate countMatrix and offsetMatrix as contiguous blocks
     uint *flatCountMatrix = new uint[nproc * COUNT_ARRAY_SIZE];
     uint **countMatrix = new uint *[nproc];
+
+    double startTime1 = MPI_Wtime();
 #pragma omp parallel for
     for (int i = 0; i < nproc; i++)
     {
@@ -442,6 +476,8 @@ int main(int argc, char *argv[])
     {
         offsetMatrix[i] = &flatOffsetMatrix[i * COUNT_ARRAY_SIZE];
     }
+    double elapsed1 = MPI_Wtime() - startTime1;
+    printf("DEBUG: elapsedtime for parallel fors =%lf sec\n", elapsed1);
 
     // set up the temporary arrays to be able to do scatters and gathers
     // set up the temp arrays
@@ -505,6 +541,7 @@ int main(int argc, char *argv[])
         // do the move values
         if (rank == 0)
         {
+            printf("DEBUG: are we getting here\n");
             placeValuesFromOffset(inputArray, inputArraySize, tempOffsetArray, outputArray);
             // Copy the output array back to the input array for the next iteration
             for (uint i = 0; i < inputArraySize; i++)
