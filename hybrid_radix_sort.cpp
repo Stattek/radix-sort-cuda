@@ -40,8 +40,8 @@ static bool getMax(const uint *array, const uint arrayLen, uint *output)
     }
 
     uint maxValue = array[0];
-// find the maximum
-// NOTE: why was the OMP reduction not working here?
+    // find the maximum
+    // NOTE: why was the OMP reduction not working here?
     for (uint i = 1; i < arrayLen; i++)
     {
         if (maxValue < array[i])
