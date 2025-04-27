@@ -61,11 +61,8 @@ static unsigned long long myPow(uint first, uint exponent)
     unsigned long long sum = 1;
     for (int i = 0; i < exponent; i++)
     {
-        printf("DEBUG: sum=%llu\n", sum);
         sum *= first;
     }
-
-    printf("DEBUG: sum=%llu\n", sum);
 
     return sum;
 }
