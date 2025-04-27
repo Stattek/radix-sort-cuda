@@ -18,7 +18,7 @@
 
 #define ARRAY_PRINT_THRESHOLD 256
 
-#define NUM_BASE 256
+#define NUM_BASE 10
 #define COUNT_ARRAY_SIZE NUM_BASE // the count array will always hold the same number of values as the number of digits
 #define INITIAL_ARRAY_SIZE 20
 
@@ -205,33 +205,34 @@ static bool isSorted(int *array, uint arrayLen)
  */
 static void computeOffsets(uint *countMatrix, uint numSections, int *displacements, int numValues, uint *offsetMatrix)
 {
+    
 // Initialize the offset matrix
 #pragma omp parallel for
     for (uint m = 0; m < numSections; m++)
     {
-        for (uint n = 0; n < numValues; n++)
+        for (uint n = 0; n < (uint)numValues; n++)
         {
 
-            printf("DEBUG: did we get here7\n");
-            offsetMatrix[displacements[m] + n] = 0;
-            printf("DEBUG: did we get here8\n");
+            // printf("DEBUG: did we get here7\n");
+            offsetMatrix[m*COUNT_ARRAY_SIZE + n] = 0;
+            // printf("DEBUG: did we get here8\n");
 
             // First term: Sum of counts for all values < n in all sections
             for (uint i = 0; i < n; i++)
             {
                 for (uint j = 0; j < numSections; j++)
                 {
-                    offsetMatrix[displacements[m] + n] += countMatrix[displacements[j] + i];
+                    offsetMatrix[m*COUNT_ARRAY_SIZE + n] += countMatrix[j*COUNT_ARRAY_SIZE + i];
                 }
             }
 
-            printArray("DEBUG:offsetmatrix", offsetMatrix, numSections * COUNT_ARRAY_SIZE);
-            printArray("DEBUG:countmatrix", countMatrix, numSections * COUNT_ARRAY_SIZE);
+            // printArray("DEBUG:offsetmatrix", offsetMatrix, numSections * COUNT_ARRAY_SIZE);
+            // printArray("DEBUG:countmatrix", countMatrix, numSections * COUNT_ARRAY_SIZE);
 
             // Second term: Sum of counts for value n in all sections < m
             for (uint j = 0; j < m; j++)
             {
-                offsetMatrix[displacements[m] + n] += countMatrix[displacements[j] + n];
+                offsetMatrix[m*COUNT_ARRAY_SIZE + n] += countMatrix[j*COUNT_ARRAY_SIZE + n];
             }
 #if 0
             // Debug print to check offsetMatrix values
@@ -512,6 +513,7 @@ int main(int argc, char *argv[])
             flipSignBits((int *)inputArray, inputArraySize);
             printArray("DEBUG:inputarray", inputArray, inputArraySize);
             flipSignBits((int *)inputArray, inputArraySize);
+            printArray("DEBUG:offsetarray", tempOffsetArray, inputArraySize);
 
             printf("DEBUG: did we get here100\n");
             placeValuesFromOffset(inputArray, inputArraySize, tempOffsetArray, outputArray);
