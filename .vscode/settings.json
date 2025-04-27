@@ -1,0 +1,21 @@
+{
+    "files.associations": {
+        "array": "cpp",
+        "compare": "cpp",
+        "functional": "cpp",
+        "tuple": "cpp",
+        "type_traits": "cpp",
+        "utility": "cpp",
+        "optional": "cpp",
+        "system_error": "cpp",
+        "math.h": "c",
+        "string_view": "c",
+        "initializer_list": "c",
+        "stdio.h": "c",
+        "stdbool.h": "c",
+        "random": "cpp",
+        "cmath": "cpp",
+        "new": "cpp",
+        "iostream": "cpp"
+    }
+}
