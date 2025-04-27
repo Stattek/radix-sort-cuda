@@ -515,11 +515,10 @@ int main(int argc, char *argv[])
         if (rank == 0)
         {
             placeValuesFromOffset(inputArray, inputArraySize, tempOffsetArray, outputArray);
-            // Copy the output array back to the input array for the next iteration
-            for (uint i = 0; i < inputArraySize; i++)
-            {
-                inputArray[i] = outputArray[i];
-            }
+            // Swap inputArray and outputArray pointers
+            uint *temp = inputArray;
+            inputArray = outputArray;
+            outputArray = temp;
         }
 
         delete[] tempOffsetArray;
@@ -527,7 +526,12 @@ int main(int argc, char *argv[])
     }
 
     MPI_Barrier(comm); // Ensure all processes are done
-
+    if (rank == 0 && maxPossibleValue > 1)
+    {
+        uint *temp = inputArray;
+        inputArray = outputArray;
+        outputArray = temp;
+    }
     // save time
     double elapsedTime = MPI_Wtime() - startTime;
 
