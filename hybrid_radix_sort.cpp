@@ -16,7 +16,7 @@
 #include <omp.h>
 #endif
 
-#define ARRAY_PRINT_THRESHOLD 256
+#define ARRAY_PRINT_THRESHOLD 20
 
 #define NUM_BASE 10
 #define COUNT_ARRAY_SIZE NUM_BASE // the count array will always hold the same number of values as the number of digits
@@ -205,41 +205,74 @@ static bool isSorted(int *array, uint arrayLen)
  */
 static void computeOffsets(uint *countMatrix, uint numSections, int *displacements, int numValues, uint *offsetMatrix)
 {
-    
-// Initialize the offset matrix
-#pragma omp parallel for
-    for (uint m = 0; m < numSections; m++)
+
+    // Initialize the offset matrix
+    // #pragma omp parallel for
+    //     for (uint m = 0; m < numSections; m++)
+    //     {
+    //         for (uint n = 0; n < (uint)numValues; n++)
+    //         {
+
+    //             // printf("DEBUG: did we get here7\n");
+    //             offsetMatrix[m*COUNT_ARRAY_SIZE + n] = 0;
+    //             // printf("DEBUG: did we get here8\n");
+
+    //             // First term: Sum of counts for all values < n in all sections
+    //             for (uint i = 0; i < n; i++)
+    //             {
+    //                 for (uint j = 0; j < numSections; j++)
+    //                 {
+    //                     offsetMatrix[m*COUNT_ARRAY_SIZE + n] += countMatrix[j*COUNT_ARRAY_SIZE + i];
+    //                 }
+    //             }
+
+    //             // printArray("DEBUG:offsetmatrix", offsetMatrix, numSections * COUNT_ARRAY_SIZE);
+    //             // printArray("DEBUG:countmatrix", countMatrix, numSections * COUNT_ARRAY_SIZE);
+
+    //             // Second term: Sum of counts for value n in all sections < m
+    //             for (uint j = 0; j < m; j++)
+    //             {
+    //                 offsetMatrix[m*COUNT_ARRAY_SIZE + n] += countMatrix[j*COUNT_ARRAY_SIZE + n];
+    //             }
+    // #if 0
+    //             // Debug print to check offsetMatrix values
+    //             // printf("OffsetMatrix[%d][%d] = %d\n", m, n, offsetMatrix[m][n]);
+    // #endif
+    //         }
+    //     }
+    uint prefixSum = 0;
+    for (uint n = 0; n < (uint)numValues; n++)
     {
-        for (uint n = 0; n < (uint)numValues; n++)
+        // Running prefix sum for the current column
+        for (uint m = 0; m < numSections; m++) // Iterate over rows (sections)
         {
+            // Compute the offset for the current element
+            offsetMatrix[m * numValues + n] = prefixSum;
+            // printf("Prefix sum for column %d: %d\n", n, prefixSum);
 
-            // printf("DEBUG: did we get here7\n");
-            offsetMatrix[m*COUNT_ARRAY_SIZE + n] = 0;
-            // printf("DEBUG: did we get here8\n");
-
-            // First term: Sum of counts for all values < n in all sections
-            for (uint i = 0; i < n; i++)
-            {
-                for (uint j = 0; j < numSections; j++)
-                {
-                    offsetMatrix[m*COUNT_ARRAY_SIZE + n] += countMatrix[j*COUNT_ARRAY_SIZE + i];
-                }
-            }
-
-            // printArray("DEBUG:offsetmatrix", offsetMatrix, numSections * COUNT_ARRAY_SIZE);
-            // printArray("DEBUG:countmatrix", countMatrix, numSections * COUNT_ARRAY_SIZE);
-
-            // Second term: Sum of counts for value n in all sections < m
-            for (uint j = 0; j < m; j++)
-            {
-                offsetMatrix[m*COUNT_ARRAY_SIZE + n] += countMatrix[j*COUNT_ARRAY_SIZE + n];
-            }
-#if 0
-            // Debug print to check offsetMatrix values
-            // printf("OffsetMatrix[%d][%d] = %d\n", m, n, offsetMatrix[m][n]);
-#endif
+            // Update the prefix sum with the current count
+            prefixSum += countMatrix[m * numValues + n];
         }
     }
+    // Debug print to check the offset matrix
+#if 0
+    {
+        printf("\nOffset Matrix:\n");
+        for (uint m = 0; m < numSections; m++)
+        {
+            printf("Section %d: [", m);
+            for (uint n = 0; n < (uint)numValues; n++)
+            {
+                printf("%d", offsetMatrix[m * numValues + n]);
+                if (n != (uint)numValues - 1)
+                {
+                    printf(", ");
+                }
+            }
+            printf("]\n");
+        }
+    }
+#endif
 }
 
 /**
@@ -256,29 +289,44 @@ static void computeOffsets(uint *countMatrix, uint numSections, int *displacemen
 static void computeLocalOffsets(const uint *localArray, const uint localArraySize, uint *offsetMatrix,
                                 const uint numValues, const uint rank, uint *offsets, const uint digit)
 {
-    // Create a local copy of the offsets for the current process to track updates
-    uint *localOffsets = new uint[numValues];
-#pragma omp parallel for
-    for (uint i = 0; i < numValues; i++)
-    {
-        localOffsets[i] = offsetMatrix[(rank * numValues) + i];
-    }
+    //     // Create a local copy of the offsets for the current process to track updates
+    //     uint *localOffsets = new uint[numValues];
+    // #pragma omp parallel for
+    //     for (uint i = 0; i < numValues; i++)
+    //     {
+    //         localOffsets[i] = offsetMatrix[(rank * numValues) + i];
+    //     }
 
+    //     // Assign indexes to each value in the local array
+    //     for (uint i = 0; i < localArraySize; i++)
+    //     {
+    //         uint value = (localArray[i] / digit) % NUM_BASE;
+    //         offsets[i] = localOffsets[value]; // Assign the current offset for the value
+    //         localOffsets[value]++;            // Increment the offset for the next occurrence
+
+    // #if 0
+    //         // Debug print to check offsets
+    //         printf("Process %d: Value %d assigned offset %d\n", rank, value, offsets[i]);
+    // #endif
+    //     }
+
+    //     delete[] localOffsets;
+    //     localOffsets = NULL;
     // Assign indexes to each value in the local array
     for (uint i = 0; i < localArraySize; i++)
     {
+        // Compute the digit value for the current element
         uint value = (localArray[i] / digit) % NUM_BASE;
-        offsets[i] = localOffsets[value]; // Assign the current offset for the value
-        localOffsets[value]++;            // Increment the offset for the next occurrence
 
-#if 0
-        // Debug print to check offsets
-        printf("Process %d: Value %d assigned offset %d\n", rank, value, offsets[i]);
-#endif
+        // Calculate the index in the global offsetMatrix
+        uint globalOffsetIndex = rank * numValues + value;
+
+        // Assign the current offset for the value
+        offsets[i] = offsetMatrix[globalOffsetIndex];
+
+        // Increment the offset in the global offsetMatrix for the next occurrence
+        offsetMatrix[globalOffsetIndex]++;
     }
-
-    delete[] localOffsets;
-    localOffsets = NULL;
 }
 
 /**
@@ -471,66 +519,156 @@ int main(int argc, char *argv[])
         tempDisplacements[i] = curDisplacement;
         curDisplacement += tempSendRecvCounts[i];
     }
-
+    double sTime = 0;
+    double eTime = 0;
+    std::vector<double> timings(9, 0.0);
     double startTime = MPI_Wtime();
 
     // NOTE: do not parallelize anything with MP that calls MPI functions
     for (unsigned long long digit = 1; digit < maxPossibleValue; digit *= NUM_BASE)
     {
         // scatter the input array into local arrays
+        if (rank == 0)
+            sTime = MPI_Wtime();
         MPI_Scatterv(inputArray, tempSendRecvCounts, tempDisplacements, MPI_UNSIGNED, localArray, (int)localArraySize, MPI_UNSIGNED, 0, comm);
-
+        if (rank == 0)
+        {
+            eTime = MPI_Wtime() - sTime;
+            timings[0] += eTime;
+            printf("\n\nScatter time: %lf\n", eTime);
+        }
         // update the local count array as the matrix
+        if (rank == 0)
+            sTime = MPI_Wtime();
         updateCountMatrix(localCountArray, localArray, localArraySize, digit);
-
-        printf("DEBUG: did we get here1\n");
-        // Gather localCountArray into countMatrix
+        if (rank == 0)
+        {
+            eTime = MPI_Wtime() - sTime;
+            timings[1] += eTime;
+            printf("Update count matrix time: %lf\n", eTime);
+        }
+        // printf("DEBUG: did we get here1\n");
+        //  Gather localCountArray into countMatrix
+        if (rank == 0)
+            sTime = MPI_Wtime();
         MPI_Gather(localCountArray, COUNT_ARRAY_SIZE, MPI_UNSIGNED,
                    countMatrix, COUNT_ARRAY_SIZE, MPI_UNSIGNED, 0, comm);
-
-        printf("DEBUG: did we get here2\n");
+        if (rank == 0)
+        {
+            eTime = MPI_Wtime() - sTime;
+            timings[2] += eTime;
+            printf("Gather count matrix time: %lf\n", eTime);
+        }
+        // printf("DEBUG: did we get here2\n");
+        if (rank == 0)
+            sTime = MPI_Wtime();
         MPI_Bcast(countMatrix, nproc * COUNT_ARRAY_SIZE, MPI_UNSIGNED, 0, comm);
-
-        printf("DEBUG: did we get here3\n");
-        // compute offsets
-        computeOffsets(countMatrix, nproc, tempDisplacements, COUNT_ARRAY_SIZE, offsetMatrix);
-        printArray("DEBUG:matrix", countMatrix, nproc * COUNT_ARRAY_SIZE);
-
-        printf("DEBUG: did we get here4\n");
-        // compute local offsets
+        if (rank == 0)
+        {
+            eTime = MPI_Wtime() - sTime;
+            timings[3] += eTime;
+            printf("Broadcast count matrix time: %lf\n", eTime);
+        }
+        // printf("DEBUG: did we get here3\n");
+        //  compute offsets
+        if (rank == 0)
+            sTime = MPI_Wtime();
+        if (rank == 0)
+        {
+            computeOffsets(countMatrix, nproc, tempDisplacements, COUNT_ARRAY_SIZE, offsetMatrix);
+        }
+        if (rank == 0)
+        {
+            eTime = MPI_Wtime() - sTime;
+            timings[4] += eTime;
+            printf("Compute offsets time: %lf\n", eTime);
+        }
+        // Broadcast the offset matrix to all processes
+        if (rank == 0)
+            sTime = MPI_Wtime();
+        MPI_Bcast(offsetMatrix, nproc * COUNT_ARRAY_SIZE, MPI_UNSIGNED, 0, comm);
+        // printArray("DEBUG:matrix", countMatrix, nproc * COUNT_ARRAY_SIZE);
+        if (rank == 0)
+        {
+            eTime = MPI_Wtime() - sTime;
+            timings[5] += eTime;
+            printf("Broadcast offset matrix time: %lf\n", eTime);
+        }
+        // printf("DEBUG: did we get here4\n");
+        //  compute local offsets
+        if (rank == 0)
+            sTime = MPI_Wtime();
         computeLocalOffsets(localArray, localArraySize, offsetMatrix,
                             COUNT_ARRAY_SIZE, rank, localOffsetArray, digit);
-
-        printf("DEBUG: did we get here5\n");
+        if (rank == 0)
+        {
+            eTime = MPI_Wtime() - sTime;
+            timings[6] += eTime;
+            printf("Compute local offsets time: %lf\n", eTime);
+        }
+        // printf("DEBUG: did we get here5\n");
+        if (rank == 0)
+            sTime = MPI_Wtime();
         uint *tempOffsetArray = new uint[inputArraySize];
         MPI_Gatherv(localOffsetArray, localArraySize, MPI_UNSIGNED, tempOffsetArray,
                     tempSendRecvCounts, tempDisplacements, MPI_UNSIGNED, 0, comm);
-
-        printf("DEBUG: did we get here99\n");
-        // do the move values
         if (rank == 0)
         {
-            flipSignBits((int *)inputArray, inputArraySize);
-            printArray("DEBUG:inputarray", inputArray, inputArraySize);
-            flipSignBits((int *)inputArray, inputArraySize);
-            printArray("DEBUG:offsetarray", tempOffsetArray, inputArraySize);
+            eTime = MPI_Wtime() - sTime;
+            timings[7]+=eTime;
+            printf("Gather offsets time: %lf\n", eTime);
+        }
+        // printf("DEBUG: did we get here99\n");
+        //  do the move values
+        if (rank == 0)
+            sTime = MPI_Wtime();
+        if (rank == 0)
+        {
+            // flipSignBits((int *)inputArray, inputArraySize);
+            // printArray("DEBUG:inputarray", inputArray, inputArraySize);
+            // flipSignBits((int *)inputArray, inputArraySize);
+            // printArray("DEBUG:offsetarray", tempOffsetArray, inputArraySize);
 
-            printf("DEBUG: did we get here100\n");
+            // printf("DEBUG: did we get here100\n");
             placeValuesFromOffset(inputArray, inputArraySize, tempOffsetArray, outputArray);
-            printf("DEBUG: did we get here101\n");
+            // printf("DEBUG: did we get here101\n");
 
             // Swap inputArray and outputArray pointers
             uint *temp = inputArray;
             inputArray = outputArray;
             outputArray = temp;
         }
-
+        if (rank == 0)
+        {
+            eTime = MPI_Wtime() - sTime;
+            timings[8] += (eTime);
+            printf("Move Values time: %lf\n", eTime);
+        }
         delete[] tempOffsetArray;
         tempOffsetArray = NULL;
     }
 
     MPI_Barrier(comm); // Ensure all processes are done
+    if (rank == 0)
+    {
+        double totalTime = 0.0;
+        for (double t : timings)
+        {
+            totalTime += t;
+        }
 
+        printf("\nTiming breakdown (in seconds and percentages):\n");
+        printf("1. Scatter time: %lf (%.2f%%)\n", timings[0], (timings[0] / totalTime) * 100);
+        printf("2. Update count matrix time: %lf (%.2f%%)\n", timings[1], (timings[1] / totalTime) * 100);
+        printf("3. Gather count matrix time: %lf (%.2f%%)\n", timings[2], (timings[2] / totalTime) * 100);
+        printf("4. Broadcast count matrix time: %lf (%.2f%%)\n", timings[3], (timings[3] / totalTime) * 100);
+        printf("5. Compute offsets time: %lf (%.2f%%)\n", timings[4], (timings[4] / totalTime) * 100);
+        printf("6. Broadcast offset matrix time: %lf (%.2f%%)\n", timings[5], (timings[5] / totalTime) * 100);
+        printf("7. Compute local offsets time: %lf (%.2f%%)\n", timings[6], (timings[6] / totalTime) * 100);
+        printf("8. Gather offsets time: %lf (%.2f%%)\n", timings[7], (timings[7] / totalTime) * 100);
+        printf("9. Move Values time: %lf (%.2f%%)\n", timings[8], (timings[8] / totalTime) * 100);
+        printf("Total time: %lf seconds\n", totalTime);
+    }
     // swap the pointers again :)
     if (rank == 0 && maxPossibleValue > 1)
     {
