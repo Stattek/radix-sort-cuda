@@ -41,7 +41,7 @@ static bool getMax(const uint *array, const uint arrayLen, uint *output)
 
     uint maxValue = array[0];
     // find the maximum
-    // NOTE: why was the OMP reduction not working here?
+    // NOTE: critical section slows down this loop in parallel
     for (uint i = 1; i < arrayLen; i++)
     {
         if (maxValue < array[i])
@@ -317,6 +317,12 @@ static void updateCountMatrix(uint *countMatrix, const uint *localArray, const u
     }
 }
 
+/**
+ * @brief Flips all the sign bits in an array.
+ *
+ * @param array The array to flip sign bits in.
+ * @param arrayLength The lengh of the arrray.
+ */
 static void flipSignBits(int *array, uint arrayLength)
 {
     // create mask for flipping the sign bit
