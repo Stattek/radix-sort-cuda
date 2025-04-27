@@ -1,6 +1,0 @@
-# ninja log v5
-2	38	1745259726514887200	src/sort/CMakeFiles/Sort.dir/radix_sort.cpp.o	82fab4b314cde177
-2	141	1745259726617886225	src/sort/CMakeFiles/Sort.dir/counting_sort.cpp.o	2d4dec45ac0ff70b
-1	15	1745259733861818661	src/sort/libSort.a	2bbc9c2611d74211
-2	276	1745260824448408614	src/CMakeFiles/RadixSort.dir/main.cpp.o	33b6ed40f0449636
-276	324	1745260824494408991	src/RadixSort	feaccf53bff51e3a
