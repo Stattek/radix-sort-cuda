@@ -4,7 +4,10 @@ build:
 	mpic++ -Wall -g hybrid_radix_sort.cpp -o hybrid_radix_sort.out -fopenmp
 
 run:
-	mpirun -np 1 ./hybrid_radix_sort.out input.txt 1
+	mpirun -np 2 ./hybrid_radix_sort.out test_data/input.txt 1
+
+debug:
+	mpirun -np 1 kitty --hold -e gdb run --args ./hybrid_radix_sort.out test_data/input.txt 1
 
 define fail
 	(echo "FAIL";\
