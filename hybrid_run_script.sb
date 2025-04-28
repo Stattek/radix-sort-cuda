@@ -13,20 +13,14 @@ srun -n 1 ./hybrid_radix_sort.out random_data_1000000_values_9_digits.txt 1
 srun -n 1 ./hybrid_radix_sort.out random_data_1000000_values_8_digits.txt 1
 srun -n 1 ./hybrid_radix_sort.out random_data_1000000_values_7_digits.txt 1
 srun -n 1 ./hybrid_radix_sort.out test.txt 1
+srun -n 1 ./hybrid_radix_sort.out 2000_dataset.txt 1
 
 # MPI only
-srun -n 1 ./hybrid_radix_sort.out test.txt 1
-srun -n 5 ./hybrid_radix_sort.out test.txt 1
-srun -n 10 ./hybrid_radix_sort.out test.txt 1
-srun -n 20 ./hybrid_radix_sort.out test.txt 1
-srun -n 40 ./hybrid_radix_sort.out test.txt 1
-
 srun -n 1 ./hybrid_radix_sort.out random_data_1000000_values_9_digits.txt 1
 srun -n 5 ./hybrid_radix_sort.out random_data_1000000_values_9_digits.txt 1
 srun -n 10 ./hybrid_radix_sort.out random_data_1000000_values_9_digits.txt 1
 srun -n 20 ./hybrid_radix_sort.out random_data_1000000_values_9_digits.txt 1
 srun -n 40 ./hybrid_radix_sort.out random_data_1000000_values_9_digits.txt 1
-
 
 srun -n 1 ./hybrid_radix_sort.out random_data_1000000_values_8_digits.txt 1
 srun -n 5 ./hybrid_radix_sort.out random_data_1000000_values_8_digits.txt 1
@@ -40,17 +34,17 @@ srun -n 10 ./hybrid_radix_sort.out random_data_1000000_values_7_digits.txt 1
 srun -n 20 ./hybrid_radix_sort.out random_data_1000000_values_7_digits.txt 1
 srun -n 40 ./hybrid_radix_sort.out random_data_1000000_values_7_digits.txt 1
 
-srun -n 1 ./hybrid_radix_sort.out rust_test_input.txt 1
-srun -n 5 ./hybrid_radix_sort.out rust_test_input.txt 1
-srun -n 10 ./hybrid_radix_sort.out rust_test_input.txt 1
-srun -n 20 ./hybrid_radix_sort.out rust_test_input.txt 1
-srun -n 40 ./hybrid_radix_sort.out rust_test_input.txt 1
+srun -n 1 ./hybrid_radix_sort.out test.txt 1
+srun -n 5 ./hybrid_radix_sort.out test.txt 1
+srun -n 10 ./hybrid_radix_sort.out test.txt 1
+srun -n 20 ./hybrid_radix_sort.out test.txt 1
+srun -n 40 ./hybrid_radix_sort.out test.txt 1
 
-srun -n 1 ./hybrid_radix_sort.out rust_test_input2.txt 1
-srun -n 5 ./hybrid_radix_sort.out rust_test_input2.txt 1
-srun -n 10 ./hybrid_radix_sort.out rust_test_input2.txt 1
-srun -n 20 ./hybrid_radix_sort.out rust_test_input2.txt 1
-srun -n 40 ./hybrid_radix_sort.out rust_test_input2.txt 1
+srun -n 1 ./hybrid_radix_sort.out 2000_dataset.txt 1
+srun -n 5 ./hybrid_radix_sort.out 2000_dataset.txt 1
+srun -n 10 ./hybrid_radix_sort.out 2000_dataset.txt 1
+srun -n 20 ./hybrid_radix_sort.out 2000_dataset.txt 1
+srun -n 40 ./hybrid_radix_sort.out 2000_dataset.txt 1
 
 # MPI and OpenMP
 srun -n 1 ./hybrid_radix_sort.out random_data_1000000_values_9_digits.txt 1
@@ -143,62 +137,62 @@ srun -n 10 ./hybrid_radix_sort.out random_data_1000000_values_7_digits.txt 40
 srun -n 20 ./hybrid_radix_sort.out random_data_1000000_values_7_digits.txt 40
 srun -n 40 ./hybrid_radix_sort.out random_data_1000000_values_7_digits.txt 40
 
-srun -n 1 ./hybrid_radix_sort.out rust_test_input.txt 1
-srun -n 5 ./hybrid_radix_sort.out rust_test_input.txt 1
-srun -n 10 ./hybrid_radix_sort.out rust_test_input.txt 1
-srun -n 20 ./hybrid_radix_sort.out rust_test_input.txt 1
-srun -n 40 ./hybrid_radix_sort.out rust_test_input.txt 1
+srun -n 1 ./hybrid_radix_sort.out test.txt 1
+srun -n 5 ./hybrid_radix_sort.out test.txt 1
+srun -n 10 ./hybrid_radix_sort.out test.txt 1
+srun -n 20 ./hybrid_radix_sort.out test.txt 1
+srun -n 40 ./hybrid_radix_sort.out test.txt 1
 
-srun -n 1 ./hybrid_radix_sort.out rust_test_input.txt 5
-srun -n 5 ./hybrid_radix_sort.out rust_test_input.txt 5
-srun -n 10 ./hybrid_radix_sort.out rust_test_input.txt 5
-srun -n 20 ./hybrid_radix_sort.out rust_test_input.txt 5
-srun -n 40 ./hybrid_radix_sort.out rust_test_input.txt 5
+srun -n 1 ./hybrid_radix_sort.out test.txt 5
+srun -n 5 ./hybrid_radix_sort.out test.txt 5
+srun -n 10 ./hybrid_radix_sort.out test.txt 5
+srun -n 20 ./hybrid_radix_sort.out test.txt 5
+srun -n 40 ./hybrid_radix_sort.out test.txt 5
 
-srun -n 1 ./hybrid_radix_sort.out rust_test_input.txt 10
-srun -n 5 ./hybrid_radix_sort.out rust_test_input.txt 10
-srun -n 10 ./hybrid_radix_sort.out rust_test_input.txt 10
-srun -n 20 ./hybrid_radix_sort.out rust_test_input.txt 10
-srun -n 40 ./hybrid_radix_sort.out rust_test_input.txt 10
+srun -n 1 ./hybrid_radix_sort.out test.txt 10
+srun -n 5 ./hybrid_radix_sort.out test.txt 10
+srun -n 10 ./hybrid_radix_sort.out test.txt 10
+srun -n 20 ./hybrid_radix_sort.out test.txt 10
+srun -n 40 ./hybrid_radix_sort.out test.txt 10
 
-srun -n 1 ./hybrid_radix_sort.out rust_test_input.txt 20
-srun -n 5 ./hybrid_radix_sort.out rust_test_input.txt 20
-srun -n 10 ./hybrid_radix_sort.out rust_test_input.txt 20
-srun -n 20 ./hybrid_radix_sort.out rust_test_input.txt 20
-srun -n 40 ./hybrid_radix_sort.out rust_test_input.txt 20
+srun -n 1 ./hybrid_radix_sort.out test.txt 20
+srun -n 5 ./hybrid_radix_sort.out test.txt 20
+srun -n 10 ./hybrid_radix_sort.out test.txt 20
+srun -n 20 ./hybrid_radix_sort.out test.txt 20
+srun -n 40 ./hybrid_radix_sort.out test.txt 20
 
-srun -n 1 ./hybrid_radix_sort.out rust_test_input.txt 40
-srun -n 5 ./hybrid_radix_sort.out rust_test_input.txt 40
-srun -n 10 ./hybrid_radix_sort.out rust_test_input.txt 40
-srun -n 20 ./hybrid_radix_sort.out rust_test_input.txt 40
-srun -n 40 ./hybrid_radix_sort.out rust_test_input.txt 40
+srun -n 1 ./hybrid_radix_sort.out test.txt 40
+srun -n 5 ./hybrid_radix_sort.out test.txt 40
+srun -n 10 ./hybrid_radix_sort.out test.txt 40
+srun -n 20 ./hybrid_radix_sort.out test.txt 40
+srun -n 40 ./hybrid_radix_sort.out test.txt 40
 
-srun -n 1 ./hybrid_radix_sort.out rust_test_input2.txt 1
-srun -n 5 ./hybrid_radix_sort.out rust_test_input2.txt 1
-srun -n 10 ./hybrid_radix_sort.out rust_test_input2.txt 1
-srun -n 20 ./hybrid_radix_sort.out rust_test_input2.txt 1
-srun -n 40 ./hybrid_radix_sort.out rust_test_input2.txt 1
+srun -n 1 ./hybrid_radix_sort.out 2000_dataset.txt 1
+srun -n 5 ./hybrid_radix_sort.out 2000_dataset.txt 1
+srun -n 10 ./hybrid_radix_sort.out 2000_dataset.txt 1
+srun -n 20 ./hybrid_radix_sort.out 2000_dataset.txt 1
+srun -n 40 ./hybrid_radix_sort.out 2000_dataset.txt 1
 
-srun -n 1 ./hybrid_radix_sort.out rust_test_input2.txt 5
-srun -n 5 ./hybrid_radix_sort.out rust_test_input2.txt 5
-srun -n 10 ./hybrid_radix_sort.out rust_test_input2.txt 5
-srun -n 20 ./hybrid_radix_sort.out rust_test_input2.txt 5
-srun -n 40 ./hybrid_radix_sort.out rust_test_input2.txt 5
+srun -n 1 ./hybrid_radix_sort.out 2000_dataset.txt 5
+srun -n 5 ./hybrid_radix_sort.out 2000_dataset.txt 5
+srun -n 10 ./hybrid_radix_sort.out 2000_dataset.txt 5
+srun -n 20 ./hybrid_radix_sort.out 2000_dataset.txt 5
+srun -n 40 ./hybrid_radix_sort.out 2000_dataset.txt 5
 
-srun -n 1 ./hybrid_radix_sort.out rust_test_input2.txt 10
-srun -n 5 ./hybrid_radix_sort.out rust_test_input2.txt 10
-srun -n 10 ./hybrid_radix_sort.out rust_test_input2.txt 10
-srun -n 20 ./hybrid_radix_sort.out rust_test_input2.txt 10
-srun -n 40 ./hybrid_radix_sort.out rust_test_input2.txt 10
+srun -n 1 ./hybrid_radix_sort.out 2000_dataset.txt 10
+srun -n 5 ./hybrid_radix_sort.out 2000_dataset.txt 10
+srun -n 10 ./hybrid_radix_sort.out 2000_dataset.txt 10
+srun -n 20 ./hybrid_radix_sort.out 2000_dataset.txt 10
+srun -n 40 ./hybrid_radix_sort.out 2000_dataset.txt 10
 
-srun -n 1 ./hybrid_radix_sort.out rust_test_input2.txt 20
-srun -n 5 ./hybrid_radix_sort.out rust_test_input2.txt 20
-srun -n 10 ./hybrid_radix_sort.out rust_test_input2.txt 20
-srun -n 20 ./hybrid_radix_sort.out rust_test_input2.txt 20
-srun -n 40 ./hybrid_radix_sort.out rust_test_input2.txt 20
+srun -n 1 ./hybrid_radix_sort.out 2000_dataset.txt 20
+srun -n 5 ./hybrid_radix_sort.out 2000_dataset.txt 20
+srun -n 10 ./hybrid_radix_sort.out 2000_dataset.txt 20
+srun -n 20 ./hybrid_radix_sort.out 2000_dataset.txt 20
+srun -n 40 ./hybrid_radix_sort.out 2000_dataset.txt 20
 
-srun -n 1 ./hybrid_radix_sort.out rust_test_input2.txt 40
-srun -n 5 ./hybrid_radix_sort.out rust_test_input2.txt 40
-srun -n 10 ./hybrid_radix_sort.out rust_test_input2.txt 40
-srun -n 20 ./hybrid_radix_sort.out rust_test_input2.txt 40
-srun -n 40 ./hybrid_radix_sort.out rust_test_input2.txt 40
+srun -n 1 ./hybrid_radix_sort.out 2000_dataset.txt 40
+srun -n 5 ./hybrid_radix_sort.out 2000_dataset.txt 40
+srun -n 10 ./hybrid_radix_sort.out 2000_dataset.txt 40
+srun -n 20 ./hybrid_radix_sort.out 2000_dataset.txt 40
+srun -n 40 ./hybrid_radix_sort.out 2000_dataset.txt 40
