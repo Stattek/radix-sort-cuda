@@ -5,47 +5,16 @@
 #include <vector>
 #include <fstream>
 #include <omp.h>
+#include <math.h>
 
 #define ARRAY_PRINT_THRESHOLD 20
 
 // #define NUM_BLOCKS 512
 #define NUM_THREADS 4
 
-#define NUM_BASE 256
+#define NUM_BASE 10
 #define COUNT_ARRAY_SIZE NUM_BASE // the count array will always hold the same number of values as the number of digits
 #define INITIAL_ARRAY_SIZE 20
-
-/**
- * @brief multiples an array by a constant value
- *
- * @param array the array
- * @param arrayLen the array length
- * @param multBy the constant to multiply by
- */
-__global__ void multiplyArrayBy(int *array, int arrayLen, const int multBy)
-{
-    int index = (blockIdx.x * blockDim.x) + threadIdx.x;
-    if (index < arrayLen)
-    {
-        array[index] *= multBy;
-    }
-}
-
-/**
- * @brief multiples an array by a constant value
- *
- * @param array the array
- * @param arrayLen the array length
- * @param multBy the constant to multiply by
- */
-__global__ void initializeArray(int *array, int arrayLen)
-{
-    int index = (blockIdx.x * blockDim.x) + threadIdx.x;
-    if (index < arrayLen)
-    {
-        array[index] = index;
-    }
-}
 
 /**
  * @brief Prints the array.
@@ -259,33 +228,31 @@ static bool isSorted(int *array, uint arrayLen)
 }
 
 /**
- * @brief multiples an array by a constant value
+ * @brief Updates the count matrix for the local array.
  *
- * @param array the array
- * @param arrayLen the array length
- * @param multBy the constant to multiply by
+ * @param countMatrix The countmatrix to modify.
+ * @param countMatrixStart The starting index into the countMatrix to use.
+ * @param localArray The local array to read from.
+ * @param localArrayStart The starting index into the localArray.
+ * @param localArraySize The local array size.
+ * @param digit The current digit to update the count matrix on.
  */
-__global__ void multiplyArrayBy(int *array, int arrayLen, const int multBy)
+__global__ void updateCountMatrix(uint *countMatrix, const uint countMatrixStart, const uint *localArray,
+                                  const uint localArrayStart, const uint localArraySize, const uint digit)
 {
+    // Count the occurrences of each digit at the current place value in the local array
     int index = (blockIdx.x * blockDim.x) + threadIdx.x;
-    if (index < arrayLen)
-    {
-        array[index] *= multBy;
-    }
-}
+    printf("DEBUG: index=%d\n", index);
 
-/**
- * @brief Initialzies the array to 0.
- *
- * @param array The array.
- * @param arrayLen The array length.
- */
-__global__ void initializeArray(int *array, int arrayLen)
-{
-    int index = (blockIdx.x * blockDim.x) + threadIdx.x;
-    if (index < arrayLen)
+    if (index < localArraySize)
     {
-        array[index] = 0;
+        uint digitValue = (localArray[index] / digit) % NUM_BASE;
+        countMatrix[(blockIdx.x * COUNT_ARRAY_SIZE) + digitValue]++;
+
+        printf("DEBUG: index=%d, blockIdx.x=%d,blockDim.x=%d, threadIdx.x=%d, countmatrix[%d]=%u, digitValue=%u\n",
+               index, blockIdx.x,
+               blockDim.x, threadIdx.x, (blockIdx.x * COUNT_ARRAY_SIZE) + digitValue,
+               countMatrix[(blockIdx.x * COUNT_ARRAY_SIZE) + digitValue], digitValue);
     }
 }
 
@@ -325,7 +292,9 @@ int main(int argc, char *argv[])
     printArray("Initial", inputArray, inputArraySize);
 
     // flip bits, then do the rest of the setup
+#if 0 // TODO: bring back
     flipSignBits((int *)inputArray, inputArraySize);
+#endif
 
     outputArray = new uint[inputArraySize];
     (void)memset(outputArray, 0, sizeof(uint) * inputArraySize);
@@ -344,7 +313,7 @@ int main(int argc, char *argv[])
     maxPossibleValue = myPow(NUM_BASE, maxDigit);
 
     // the number of blocks we need to handle each array
-    uint numBlocks = ceil(inputArraySize / NUM_THREADS);
+    uint numBlocks = ceil((double)inputArraySize / NUM_THREADS);
 
     // the base size of our local array
     uint localArraySize = numBlocks * NUM_THREADS;
@@ -402,6 +371,23 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+#if 0
+    // initialize local array matrix
+    uint *deviceLocalArrayMatrix = NULL;
+    err = cudaMallocManaged(&deviceLocalArrayMatrix, sizeof(uint) * numBlocks * COUNT_ARRAY_SIZE);
+    if (err)
+    {
+        fprintf(stderr, "Could not malloc local array matrix on GPU");
+        return 1;
+    }
+    err = cudaMemset(deviceLocalArrayMatrix, 0, sizeof(uint) * numBlocks * COUNT_ARRAY_SIZE);
+    if (err)
+    {
+        fprintf(stderr, "Could not memset local array matrix");
+        return 1;
+    }
+#endif
+
     timespec startTime, finalTime;
     clock_gettime(CLOCK_REALTIME, &startTime);
 
@@ -414,19 +400,9 @@ int main(int argc, char *argv[])
         // for every block, make sure that it gets values copied from CPU to the GPU
         // NOTE: we do not need to copy the input array value here because we
 
-        for (int i = 0; i < numBlocks; i++)
-        {
-            if (i == numBlocks - 1)
-            {
-                // this block will have less work
-
-                // inputArraySize / NUM_THREADS
-            }
-            else
-            {
-                // normal amount of work
-            }
-        }
+        // normal amount of work
+        updateCountMatrix<<<numBlocks, NUM_THREADS>>>(deviceCountMatrix, 0,
+                                                      deviceInputArray, 0, inputArraySize, digit);
 
         // TODO: perform counts for each block
 
@@ -438,6 +414,7 @@ int main(int argc, char *argv[])
 
         // TODO: gather values/place them from in the GPU
 
+#if 0
         // scatter the input array into local arrays
         MPI_Scatterv(inputArray, numValues, tempDisplacements, MPI_UNSIGNED,
                      localArray, (int)localArraySize, MPI_UNSIGNED, 0, comm);
@@ -475,9 +452,11 @@ int main(int argc, char *argv[])
 
         delete[] tempOffsetArray;
         tempOffsetArray = NULL;
+#endif
     }
 #endif
 
+    cudaDeviceSynchronize(); // DEBUG: remove eventually?
     clock_gettime(CLOCK_REALTIME, &finalTime);
     double elapsedTime = calculateElapsedTime(startTime, finalTime);
 
@@ -489,14 +468,16 @@ int main(int argc, char *argv[])
         outputArray = temp;
     }
 
-    // save time
+// save time
+#if 0 // TODO: bring back
     flipSignBits((int *)outputArray, inputArraySize);
+#endif
 
     printArray("Final", outputArray, inputArraySize);
 
     if (isSorted((int *)outputArray, inputArraySize))
     {
-        printf("\n\nThe array is sorted in %lf second(s).\n", finalTime);
+        printf("\n\nThe array is sorted in %lf second(s).\n", elapsedTime);
     }
     else
     {
