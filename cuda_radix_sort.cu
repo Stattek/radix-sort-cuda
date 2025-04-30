@@ -398,15 +398,13 @@ int main(int argc, char *argv[])
         /* GPU */
 
         // for every block, make sure that it gets values copied from CPU to the GPU
-        // NOTE: we do not need to copy the input array value here because we
+        // NOTE: we do not need to copy the input array value here because we have the whole input array on device
 
-        // normal amount of work
+        // perform counts on the array for this digit
         updateCountMatrix<<<numBlocks, NUM_THREADS>>>(deviceCountMatrix, 0,
                                                       deviceInputArray, 0, inputArraySize, digit);
 
-        // TODO: perform counts for each block
-
-        // TODO: housekeeping??
+        // TODO: housekeeping?? whatever equivalent to what MPI does here
 
         // TODO: compute offsets
 
