@@ -174,7 +174,7 @@ static uint getNumDigits(uint value)
  * @param exponent The exponent.
  * @return The result of value to the power of exponent.
  */
-static unsigned long long myPow(uint value, uint exponent)
+static unsigned long long myPowUint(uint value, uint exponent)
 {
     unsigned long long sum = 1;
 #pragma omp parallel for reduction(* : sum)
@@ -256,6 +256,46 @@ __global__ void updateCountMatrix(uint *countMatrix, const uint countMatrixStart
     }
 }
 
+/**
+ * @brief Silly inefficient offset calculation.
+ *
+ * @param blockSums
+ * @param countMatrix
+ * @return __global__
+ */
+__global__ void sumOffsetTable(uint *blockSums, uint *countMatrix)
+{
+    int sum = 0;
+    for (int i = 0; i < COUNT_ARRAY_SIZE; i++)
+    {
+        sum += countMatrix[(blockIdx.x * COUNT_ARRAY_SIZE) + i];
+        printf("DEBUG: sum=%d, i=%d, blockSumsIdx=%d, blockIdx=%d blockSums[blockIdx.x]=%d\n",
+               sum, i, blockIdx.x, blockIdx, blockSums[blockIdx.x]);
+    }
+    blockSums[blockIdx.x] = sum;
+    printf("DEBUG: blockIdx.x=%d, blockSums[blockIdx.x]=%d\n", blockIdx.x, blockSums[blockIdx.x]);
+}
+
+__global__ void shiftOffsetTable(uint *blockSums, uint *newBlockSums, int numBlocks, int iterationNum)
+{
+    printf("DEBUG: shiftOffsetTable iteration=%d\n", iterationNum);
+    if (iterationNum == 0)
+    {
+        int index = blockIdx.x + 1;
+        if (index < numBlocks)
+        {
+            newBlockSums[index] = blockSums[blockIdx.x];
+        }
+    }
+    else
+    {
+        int first = blockIdx.x;
+        int second = blockIdx.x + pow(2, iterationNum - 1);
+        printf("DEBUG: first=%d, second=%d, iteration=%d, myPowInt(2, iterationNum - 1)=%d\n",
+               first, second, iterationNum, pow(2, iterationNum - 1));
+    }
+}
+
 int main(int argc, char *argv[])
 {
     /* shared variables */
@@ -310,10 +350,11 @@ int main(int argc, char *argv[])
     maxDigit = getNumDigits(maxValue);
 
     // FIXME: evil max possible value, don't like this
-    maxPossibleValue = myPow(NUM_BASE, maxDigit);
+    maxPossibleValue = myPowUint(NUM_BASE, maxDigit);
 
     // the number of blocks we need to handle each array
     uint numBlocks = ceil((double)inputArraySize / NUM_THREADS);
+    printf("DEBUG: numBlocks=%d\n", numBlocks);
 
     // the base size of our local array
     uint localArraySize = numBlocks * NUM_THREADS;
@@ -404,6 +445,28 @@ int main(int argc, char *argv[])
         updateCountMatrix<<<numBlocks, NUM_THREADS>>>(deviceCountMatrix, 0,
                                                       deviceInputArray, 0, inputArraySize, digit);
 
+        uint *deviceBlockSums = NULL;
+        cudaMallocManaged(&deviceBlockSums, sizeof(uint) * numBlocks);
+        // perform scan algorithm
+
+        // find initial prefix sums
+        // NOTE: kinda innefficient, but this is more parallel
+        sumOffsetTable<<<numBlocks, 1>>>(deviceBlockSums, deviceCountMatrix);
+        cudaDeviceSynchronize();
+
+        for (int i = 0; i <= numBlocks / 2; i++)
+        {
+            printf("DEBUG: CPU LOOP i=%d\n", i);
+            uint *deviceNewBlockSums = NULL;
+            cudaMallocManaged(&deviceBlockSums, sizeof(uint) * numBlocks);
+            shiftOffsetTable<<<numBlocks, 1>>>(deviceBlockSums, deviceNewBlockSums, numBlocks, i);
+            cudaDeviceSynchronize();
+            // copy over the new sums to the block sums
+            cudaMemcpy(deviceBlockSums, deviceNewBlockSums, sizeof(uint) * numBlocks,
+                       cudaMemcpyKind::cudaMemcpyDeviceToDevice);
+            cudaDeviceSynchronize();
+        }
+
         // TODO: housekeeping?? whatever equivalent to what MPI does here
 
         // TODO: compute offsets
@@ -451,6 +514,8 @@ int main(int argc, char *argv[])
         delete[] tempOffsetArray;
         tempOffsetArray = NULL;
 #endif
+
+        cudaFree(deviceBlockSums);
     }
 #endif
 
