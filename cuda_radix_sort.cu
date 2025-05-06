@@ -266,7 +266,7 @@ __global__ void updateCountMatrix(uint *countMatrix, const uint *localArray,
 }
 
 /**
- * @brief Finds the offset table from the block sums.
+ * @brief Finds the offset table from the global offsets.
  *
  * @param deviceGlobalOffset The device global offset array.
  * @param countMatrix The count matrix.
@@ -290,18 +290,26 @@ __global__ void sumOffsetTable(uint *deviceGlobalOffset, uint *countMatrix)
 #endif
 }
 
-__global__ void shiftOffsetTable(uint *deviceGlobalOffset, uint *newBlockSums, int numBlocks, int iterationNum)
+/**
+ * @brief Finds partial prefix sum for this iteration.
+ *
+ * @param deviceGlobalOffset The global offset array.
+ * @param newGlobalArray The new global array to save to.
+ * @param numBlocks The number of blocks.
+ * @param iterationNum The current iteration number.
+ */
+__global__ void prefixSum(uint *deviceGlobalOffset, uint *newGlobalArray, int numBlocks, int iterationNum)
 {
 #if DO_CUDA_DEBUG // DEBUG: debug print
-    printf("DEBUG: shiftOffsetTable iteration=%d\n", iterationNum);
+    printf("DEBUG: prefixSum iteration=%d\n", iterationNum);
 #endif
     if (iterationNum == 0)
     {
-        newBlockSums[0] = 0;
+        newGlobalArray[0] = 0;
         int index = blockIdx.x + 1;
         if (index < numBlocks && blockIdx.x < numBlocks)
         {
-            newBlockSums[index] = deviceGlobalOffset[blockIdx.x];
+            newGlobalArray[index] = deviceGlobalOffset[blockIdx.x];
         }
     }
     else
@@ -316,7 +324,7 @@ __global__ void shiftOffsetTable(uint *deviceGlobalOffset, uint *newBlockSums, i
                    blockIdx.x, first, second, iterationNum, powResult);
 #endif
 
-            newBlockSums[blockIdx.x] = deviceGlobalOffset[first] + deviceGlobalOffset[second];
+            newGlobalArray[blockIdx.x] = deviceGlobalOffset[first] + deviceGlobalOffset[second];
         }
     }
 }
@@ -338,7 +346,7 @@ static void parallelScan(int numBlocks, uint *deviceGlobalOffset)
         uint *deviceNewBlockSums = NULL;
         cudaMallocManaged(&deviceNewBlockSums, sizeof(uint) * numBlocks);
         cudaMemset(deviceNewBlockSums, 0, sizeof(uint) * numBlocks);
-        shiftOffsetTable<<<numBlocks, 1>>>(deviceGlobalOffset, deviceNewBlockSums, numBlocks, i);
+        prefixSum<<<numBlocks, 1>>>(deviceGlobalOffset, deviceNewBlockSums, numBlocks, i);
         cudaDeviceSynchronize();
         // copy over the new sums to the block sums
         cudaMemcpy(deviceGlobalOffset, deviceNewBlockSums, sizeof(uint) * numBlocks,
@@ -428,7 +436,7 @@ int main(int argc, char *argv[])
     printArray("Initial", inputArray, inputArraySize);
 
     // flip bits, then do the rest of the setup
-#ifndef DO_CUDA_DEBUG // TODO: bring back
+#if !DO_CUDA_DEBUG // TODO: bring back
     flipSignBits((int *)inputArray, inputArraySize);
 #endif
 
@@ -585,7 +593,7 @@ int main(int argc, char *argv[])
     }
 
 // save time
-#ifndef DO_CUDA_DEBUG // TODO: bring back
+#if !DO_CUDA_DEBUG // TODO: bring back
     flipSignBits((int *)outputArray, inputArraySize);
 #endif
 
