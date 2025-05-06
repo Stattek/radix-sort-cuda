@@ -7,14 +7,22 @@
 #include <omp.h>
 #include <math.h>
 
+#define DO_CUDA_DEBUG 0 // enables debug prints, disables flipping bits, and uses base 10 for running
+
+#if DO_CUDA_DEBUG
 #define ARRAY_PRINT_THRESHOLD 30
+#else
+#define ARRAY_PRINT_THRESHOLD 20
+#endif
 
-// #define NUM_BLOCKS 512
-#define NUM_THREADS 4
+#define NUM_THREADS 4 // number of CUDA threads
 
+#if DO_CUDA_DEBUG
 #define NUM_BASE 10
+#else
+#define NUM_BASE 256
+#endif
 #define COUNT_ARRAY_SIZE NUM_BASE // the count array will always hold the same number of values as the number of digits
-#define INITIAL_ARRAY_SIZE 20
 
 /**
  * @brief Prints the array.
@@ -231,39 +239,39 @@ static bool isSorted(int *array, uint arrayLen)
  * @brief Updates the count matrix for the local array.
  *
  * @param countMatrix The countmatrix to modify.
- * @param countMatrixStart The starting index into the countMatrix to use.
  * @param localArray The local array to read from.
- * @param localArrayStart The starting index into the localArray.
  * @param localArraySize The local array size.
  * @param digit The current digit to update the count matrix on.
  */
-__global__ void updateCountMatrix(uint *countMatrix, const uint countMatrixStart, const uint *localArray,
-                                  const uint localArrayStart, const uint localArraySize, const uint digit)
+__global__ void updateCountMatrix(uint *countMatrix, const uint *localArray,
+                                  const uint localArraySize, const uint digit)
 {
     // Count the occurrences of each digit at the current place value in the local array
     int index = (blockIdx.x * blockDim.x) + threadIdx.x;
+#if DO_CUDA_DEBUG // DEBUG: debug print
     printf("DEBUG: index=%d\n", index);
-
+#endif
     if (index < localArraySize)
     {
         uint digitValue = (localArray[index] / digit) % NUM_BASE;
         countMatrix[(blockIdx.x * COUNT_ARRAY_SIZE) + digitValue]++;
 
+#if DO_CUDA_DEBUG // DEBUG: debug print
         printf("DEBUG: index=%d, blockIdx.x=%d,blockDim.x=%d, threadIdx.x=%d, countmatrix[%d]=%u, digitValue=%u\n",
                index, blockIdx.x,
                blockDim.x, threadIdx.x, (blockIdx.x * COUNT_ARRAY_SIZE) + digitValue,
                countMatrix[(blockIdx.x * COUNT_ARRAY_SIZE) + digitValue], digitValue);
+#endif
     }
 }
 
 /**
- * @brief Silly inefficient offset calculation.
+ * @brief Finds the offset table from the block sums.
  *
- * @param blockSums
- * @param countMatrix
- * @return __global__
+ * @param deviceGlobalOffset The device global offset array.
+ * @param countMatrix The count matrix.
  */
-__global__ void sumOffsetTable(uint *blockSums, uint *countMatrix)
+__global__ void sumOffsetTable(uint *deviceGlobalOffset, uint *countMatrix)
 {
     int sum = 0;
 
@@ -271,23 +279,29 @@ __global__ void sumOffsetTable(uint *blockSums, uint *countMatrix)
     for (int i = 0; i < COUNT_ARRAY_SIZE; i++)
     {
         sum += countMatrix[(blockIdx.x * COUNT_ARRAY_SIZE) + i];
-        printf("DEBUG: sum=%d, i=%d, blockSumsIdx=%d, blockIdx=%d blockSums[blockIdx.x]=%d\n",
-               sum, i, blockIdx.x, blockIdx, blockSums[blockIdx.x]);
+#if DO_CUDA_DEBUG // DEBUG: debug print
+        printf("DEBUG: sum=%d, i=%d, blockSumsIdx=%d, blockIdx=%d deviceGlobalOffset[blockIdx.x]=%d\n",
+               sum, i, blockIdx.x, blockIdx, deviceGlobalOffset[blockIdx.x]);
+#endif
     }
-    blockSums[blockIdx.x] = sum;
-    printf("DEBUG: blockIdx.x=%d, blockSums[blockIdx.x]=%d\n", blockIdx.x, blockSums[blockIdx.x]);
+    deviceGlobalOffset[blockIdx.x] = sum;
+#if DO_CUDA_DEBUG // DEBUG: debug print
+    printf("DEBUG: blockIdx.x=%d, deviceGlobalOffset[blockIdx.x]=%d\n", blockIdx.x, deviceGlobalOffset[blockIdx.x]);
+#endif
 }
 
-__global__ void shiftOffsetTable(uint *blockSums, uint *newBlockSums, int numBlocks, int iterationNum)
+__global__ void shiftOffsetTable(uint *deviceGlobalOffset, uint *newBlockSums, int numBlocks, int iterationNum)
 {
+#if DO_CUDA_DEBUG // DEBUG: debug print
     printf("DEBUG: shiftOffsetTable iteration=%d\n", iterationNum);
+#endif
     if (iterationNum == 0)
     {
         newBlockSums[0] = 0;
         int index = blockIdx.x + 1;
         if (index < numBlocks && blockIdx.x < numBlocks)
         {
-            newBlockSums[index] = blockSums[blockIdx.x];
+            newBlockSums[index] = deviceGlobalOffset[blockIdx.x];
         }
     }
     else
@@ -297,11 +311,84 @@ __global__ void shiftOffsetTable(uint *blockSums, uint *newBlockSums, int numBlo
         {
             int first = blockIdx.x - powResult;
             int second = blockIdx.x;
+#if DO_CUDA_DEBUG // DEBUG: debug print
             printf("DEBUG: blockIdx.x=%d first=%d, second=%d, iteration=%d, pow(2, iterationNum - 1)=%d\n",
                    blockIdx.x, first, second, iterationNum, powResult);
+#endif
 
-            newBlockSums[blockIdx.x] = blockSums[first] + blockSums[second];
+            newBlockSums[blockIdx.x] = deviceGlobalOffset[first] + deviceGlobalOffset[second];
         }
+    }
+}
+
+/**
+ * @brief Performs the parallel scan algorithm to find prefix sum.
+ *
+ * @param numBlocks The number of blocks.
+ * @param deviceGlobalOffset The global offset.
+ */
+static void parallelScan(int numBlocks, uint *deviceGlobalOffset)
+{
+    // run until log2(numBlocks)
+    for (int i = 0; i <= (int)log2(numBlocks); i++)
+    {
+#if DO_CUDA_DEBUG
+        printf("DEBUG: CPU LOOP i=%d\n", i);
+#endif
+        uint *deviceNewBlockSums = NULL;
+        cudaMallocManaged(&deviceNewBlockSums, sizeof(uint) * numBlocks);
+        cudaMemset(deviceNewBlockSums, 0, sizeof(uint) * numBlocks);
+        shiftOffsetTable<<<numBlocks, 1>>>(deviceGlobalOffset, deviceNewBlockSums, numBlocks, i);
+        cudaDeviceSynchronize();
+        // copy over the new sums to the block sums
+        cudaMemcpy(deviceGlobalOffset, deviceNewBlockSums, sizeof(uint) * numBlocks,
+                   cudaMemcpyKind::cudaMemcpyDeviceToDevice);
+        cudaDeviceSynchronize();
+        cudaFree(deviceNewBlockSums);
+        uint *tempCopy = (uint *)malloc(sizeof(uint) * numBlocks);
+#if DO_CUDA_DEBUG // DEBUG: debug print
+        cudaMemcpy(tempCopy, deviceGlobalOffset, sizeof(uint) * numBlocks,
+                   cudaMemcpyKind::cudaMemcpyDeviceToHost);
+        printArray("deviceGlobalOffset", tempCopy, numBlocks);
+#endif
+    }
+}
+
+/**
+ * @brief Reorders elements into sorted positions.
+ *
+ * @param countMatrix The count matrix.
+ * @param inputArray The input array to read from.
+ * @param outputArray The output array to write to.
+ * @param deviceGlobalOffset The device global offset array.
+ * @param localArraySize The local array size.
+ * @param digit The current digit.
+ */
+__global__ void reorderElements(uint *countMatrix, const uint *inputArray, uint *outputArray,
+                                const uint *deviceGlobalOffset, const uint localArraySize,
+                                const uint digit)
+{
+    // Count the occurrences of each digit at the current place value in the local array
+    int index = (blockIdx.x * blockDim.x) + threadIdx.x;
+#if DO_CUDA_DEBUG // DEBUG: debug print
+    printf("DEBUG: index=%d\n", index);
+#endif
+    if (index < localArraySize)
+    {
+        uint digitValue = (inputArray[index] / digit) % NUM_BASE;
+        int localOffset = countMatrix[(blockIdx.x * COUNT_ARRAY_SIZE) + digitValue];
+        int globalOffset = deviceGlobalOffset[blockIdx.x];
+
+        int globalIdx = index - localOffset + globalOffset;
+
+        outputArray[globalIdx] = inputArray[index];
+
+#if DO_CUDA_DEBUG // DEBUG: debug print
+        printf("DEBUG: index=%d, blockIdx.x=%d,blockDim.x=%d, threadIdx.x=%d, countmatrix[%d]=%u, digitValue=%u\n",
+               index, blockIdx.x,
+               blockDim.x, threadIdx.x, (blockIdx.x * COUNT_ARRAY_SIZE) + digitValue,
+               countMatrix[(blockIdx.x * COUNT_ARRAY_SIZE) + digitValue], digitValue);
+#endif
     }
 }
 
@@ -341,7 +428,7 @@ int main(int argc, char *argv[])
     printArray("Initial", inputArray, inputArraySize);
 
     // flip bits, then do the rest of the setup
-#if 0 // TODO: bring back
+#ifndef DO_CUDA_DEBUG // TODO: bring back
     flipSignBits((int *)inputArray, inputArraySize);
 #endif
 
@@ -358,12 +445,13 @@ int main(int argc, char *argv[])
     // find out the number of digits in this maximum value
     maxDigit = getNumDigits(maxValue);
 
-    // FIXME: evil max possible value, don't like this
     maxPossibleValue = myPowUint(NUM_BASE, maxDigit);
 
     // the number of blocks we need to handle each array
     uint numBlocks = ceil((double)inputArraySize / NUM_THREADS);
+#if DO_CUDA_DEBUG
     printf("DEBUG: numBlocks=%d\n", numBlocks);
+#endif
 
     // the base size of our local array
     uint localArraySize = numBlocks * NUM_THREADS;
@@ -388,6 +476,20 @@ int main(int argc, char *argv[])
     if (err)
     {
         fprintf(stderr, "Could not copy input array to GPU");
+        return 1;
+    }
+
+    uint *deviceOutputArray = NULL;
+    err = cudaMallocManaged(&deviceOutputArray, sizeof(uint) * inputArraySize);
+    if (err)
+    {
+        fprintf(stderr, "Could not malloc device output array");
+        return 1;
+    }
+    err = cudaMemset(deviceOutputArray, 0, sizeof(uint) * inputArraySize);
+    if (err)
+    {
+        fprintf(stderr, "Could not memset output array");
         return 1;
     }
 
@@ -421,27 +523,8 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-#if 0
-    // initialize local array matrix
-    uint *deviceLocalArrayMatrix = NULL;
-    err = cudaMallocManaged(&deviceLocalArrayMatrix, sizeof(uint) * numBlocks * COUNT_ARRAY_SIZE);
-    if (err)
-    {
-        fprintf(stderr, "Could not malloc local array matrix on GPU");
-        return 1;
-    }
-    err = cudaMemset(deviceLocalArrayMatrix, 0, sizeof(uint) * numBlocks * COUNT_ARRAY_SIZE);
-    if (err)
-    {
-        fprintf(stderr, "Could not memset local array matrix");
-        return 1;
-    }
-#endif
-
     timespec startTime, finalTime;
     clock_gettime(CLOCK_REALTIME, &startTime);
-
-#if 1
 
     for (unsigned long long digit = 1; digit < maxPossibleValue; digit *= NUM_BASE)
     {
@@ -451,93 +534,35 @@ int main(int argc, char *argv[])
         // NOTE: we do not need to copy the input array value here because we have the whole input array on device
 
         // perform counts on the array for this digit
-        updateCountMatrix<<<numBlocks, NUM_THREADS>>>(deviceCountMatrix, 0,
-                                                      deviceInputArray, 0, inputArraySize, digit);
+        updateCountMatrix<<<numBlocks, NUM_THREADS>>>(deviceCountMatrix,
+                                                      deviceInputArray, inputArraySize, digit);
         uint *debugCountMatrix = (uint *)malloc(sizeof(uint) * numBlocks * COUNT_ARRAY_SIZE);
         cudaMemcpy(debugCountMatrix, deviceCountMatrix, sizeof(uint) * numBlocks * COUNT_ARRAY_SIZE,
                    cudaMemcpyKind::cudaMemcpyDeviceToHost);
         printArray("debugCountMatrix", debugCountMatrix, numBlocks * COUNT_ARRAY_SIZE);
 
-        uint *deviceBlockSums = NULL;
-        cudaMallocManaged(&deviceBlockSums, sizeof(uint) * numBlocks);
+        uint *deviceGlobalOffset = NULL;
+        cudaMallocManaged(&deviceGlobalOffset, sizeof(uint) * numBlocks);
         // perform scan algorithm
 
         // find initial prefix sums
-        // NOTE: kinda innefficient, but this is more parallel
-        sumOffsetTable<<<numBlocks, 1>>>(deviceBlockSums, deviceCountMatrix);
+        sumOffsetTable<<<numBlocks, 1>>>(deviceGlobalOffset, deviceCountMatrix);
         cudaDeviceSynchronize();
 
-        // run until log2(numBlocks)
-        for (int i = 0; i <= (int)log2(numBlocks); i++)
-        {
-            printf("DEBUG: CPU LOOP i=%d\n", i);
-            uint *deviceNewBlockSums = NULL;
-            cudaMallocManaged(&deviceNewBlockSums, sizeof(uint) * numBlocks);
-            cudaMemset(deviceNewBlockSums, 0, sizeof(uint) * numBlocks);
-            shiftOffsetTable<<<numBlocks, 1>>>(deviceBlockSums, deviceNewBlockSums, numBlocks, i);
-            cudaDeviceSynchronize();
-            // copy over the new sums to the block sums
-            cudaMemcpy(deviceBlockSums, deviceNewBlockSums, sizeof(uint) * numBlocks,
-                       cudaMemcpyKind::cudaMemcpyDeviceToDevice);
-            cudaDeviceSynchronize();
-            cudaFree(deviceNewBlockSums);
-            uint *tempCopy = (uint *)malloc(sizeof(uint) * numBlocks);
-            cudaMemcpy(tempCopy, deviceBlockSums, sizeof(uint) * numBlocks,
-                       cudaMemcpyKind::cudaMemcpyDeviceToHost);
-            printArray("deviceBlockSums", tempCopy, numBlocks);
-        }
+        // perform parallel scan algorithm
+        parallelScan(numBlocks, deviceGlobalOffset);
 
-        // TODO: housekeeping?? whatever equivalent to what MPI does here
+        // reorder elements back into the original array
+        reorderElements<<<numBlocks, NUM_THREADS>>>(deviceCountMatrix, deviceInputArray, deviceOutputArray, deviceGlobalOffset,
+                                                    localArraySize, digit);
 
-        // TODO: compute offsets
+        // swap the pointers
+        uint *temp = deviceInputArray;
+        deviceInputArray = deviceOutputArray;
+        deviceOutputArray = temp;
 
-        // TODO: compute local offsets
-
-        // TODO: gather values/place them from in the GPU
-
-#if 0
-        // scatter the input array into local arrays
-        MPI_Scatterv(inputArray, numValues, tempDisplacements, MPI_UNSIGNED,
-                     localArray, (int)localArraySize, MPI_UNSIGNED, 0, comm);
-
-        // update the local count array as the matrix
-        updateCountMatrix(localCountArray, localArray, localArraySize, digit);
-
-        // Gather localCountArray into countMatrix
-        MPI_Gather(localCountArray, COUNT_ARRAY_SIZE, MPI_UNSIGNED,
-                   deviceCountMatrix, COUNT_ARRAY_SIZE, MPI_UNSIGNED, 0, comm);
-
-        MPI_Bcast(deviceCountMatrix, nproc * COUNT_ARRAY_SIZE, MPI_UNSIGNED, 0, comm);
-
-        // compute offsets
-        computeOffsets(deviceCountMatrix, nproc, tempDisplacements, COUNT_ARRAY_SIZE, offsetMatrix);
-
-        // compute local offsets
-        computeLocalOffsets(localArray, localArraySize, offsetMatrix,
-                            COUNT_ARRAY_SIZE, rank, localOffsetArray, digit);
-
-        uint *tempOffsetArray = new uint[inputArraySize];
-        MPI_Gatherv(localOffsetArray, localArraySize, MPI_UNSIGNED, tempOffsetArray,
-                    numValues, tempDisplacements, MPI_UNSIGNED, 0, comm);
-
-        cudaDeviceSynchronize();
-
-        /* CPU */
-        // do the move values
-        placeValuesFromOffset(inputArray, inputArraySize, tempOffsetArray, outputArray);
-
-        // Swap inputArray and outputArray pointers
-        uint *temp = inputArray;
-        inputArray = outputArray;
-        outputArray = temp;
-
-        delete[] tempOffsetArray;
-        tempOffsetArray = NULL;
-#endif
-
-        cudaFree(deviceBlockSums);
+        cudaFree(deviceGlobalOffset);
     }
-#endif
 
     cudaDeviceSynchronize(); // DEBUG: remove eventually?
     clock_gettime(CLOCK_REALTIME, &finalTime);
@@ -546,13 +571,21 @@ int main(int argc, char *argv[])
     // swap the pointers again :)
     if (maxPossibleValue > 1)
     {
-        uint *temp = inputArray;
-        inputArray = outputArray;
-        outputArray = temp;
+        uint *temp = deviceInputArray;
+        deviceInputArray = deviceOutputArray;
+        deviceOutputArray = temp;
+    }
+
+    // copy back from device
+    err = cudaMemcpy(outputArray, deviceOutputArray, sizeof(uint) * inputArraySize, cudaMemcpyKind::cudaMemcpyDeviceToHost);
+    if (err)
+    {
+        fprintf(stderr, "Could not copy device output array to host");
+        return 1;
     }
 
 // save time
-#if 0 // TODO: bring back
+#ifndef DO_CUDA_DEBUG // TODO: bring back
     flipSignBits((int *)outputArray, inputArraySize);
 #endif
 
@@ -595,49 +628,3 @@ int main(int argc, char *argv[])
 
     return 0;
 }
-
-#if 0
-
-int main(int argc, char *argv[])
-{
-    // call multiply array here
-    // question only
-    int *deviceArray = NULL;
-    int *hostArray = (int *)malloc(sizeof(int) * ARRAY_LEN);
-    if (!hostArray)
-    {
-        fprintf(stderr, "Could not allocate host array\n");
-        return 1;
-    }
-
-    // initialize array
-    for (int i = 0; i < ARRAY_LEN; i++)
-    {
-        hostArray[i] = i;
-    }
-
-    cudaMallocManaged(&deviceArray, sizeof(int) * ARRAY_LEN);
-    cudaCheckErrors("Failed to initialize device array");
-
-    // copy array to device
-    cudaMemcpy(deviceArray, hostArray, sizeof(int) * ARRAY_LEN, cudaMemcpyKind::cudaMemcpyHostToDevice);
-    cudaCheckErrors("Failed to copy from host to device");
-
-    // perform multiply
-    multiplyArrayBy<<<512, 1024>>>(deviceArray, ARRAY_LEN, 10);
-    cudaDeviceSynchronize();
-    cudaCheckErrors("Kernel function multiplyArrayBy failed");
-
-    // copy array back to host
-    cudaMemcpy(hostArray, deviceArray, sizeof(int) * ARRAY_LEN, cudaMemcpyKind::cudaMemcpyDeviceToHost);
-    cudaCheckErrors("Failed to copy array from device to host");
-
-    printArray("Final", hostArray, ARRAY_LEN);
-
-    free(hostArray);
-    cudaFree(deviceArray);
-
-    return 0;
-} /* main */
-
-#endif
