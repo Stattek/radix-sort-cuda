@@ -7,7 +7,7 @@
 #include <omp.h>
 #include <math.h>
 
-#define ARRAY_PRINT_THRESHOLD 20
+#define ARRAY_PRINT_THRESHOLD 30
 
 // #define NUM_BLOCKS 512
 #define NUM_THREADS 4
@@ -266,6 +266,8 @@ __global__ void updateCountMatrix(uint *countMatrix, const uint countMatrixStart
 __global__ void sumOffsetTable(uint *blockSums, uint *countMatrix)
 {
     int sum = 0;
+
+    // sum this count array
     for (int i = 0; i < COUNT_ARRAY_SIZE; i++)
     {
         sum += countMatrix[(blockIdx.x * COUNT_ARRAY_SIZE) + i];
@@ -281,18 +283,25 @@ __global__ void shiftOffsetTable(uint *blockSums, uint *newBlockSums, int numBlo
     printf("DEBUG: shiftOffsetTable iteration=%d\n", iterationNum);
     if (iterationNum == 0)
     {
+        newBlockSums[0] = 0;
         int index = blockIdx.x + 1;
-        if (index < numBlocks)
+        if (index < numBlocks && blockIdx.x < numBlocks)
         {
             newBlockSums[index] = blockSums[blockIdx.x];
         }
     }
     else
     {
-        int first = blockIdx.x;
-        int second = blockIdx.x + pow(2, iterationNum - 1);
-        printf("DEBUG: first=%d, second=%d, iteration=%d, myPowInt(2, iterationNum - 1)=%d\n",
-               first, second, iterationNum, pow(2, iterationNum - 1));
+        int powResult = (int)pow(2, iterationNum - 1);
+        if (blockIdx.x >= powResult)
+        {
+            int first = blockIdx.x - powResult;
+            int second = blockIdx.x;
+            printf("DEBUG: blockIdx.x=%d first=%d, second=%d, iteration=%d, pow(2, iterationNum - 1)=%d\n",
+                   blockIdx.x, first, second, iterationNum, powResult);
+
+            newBlockSums[blockIdx.x] = blockSums[first] + blockSums[second];
+        }
     }
 }
 
@@ -444,6 +453,10 @@ int main(int argc, char *argv[])
         // perform counts on the array for this digit
         updateCountMatrix<<<numBlocks, NUM_THREADS>>>(deviceCountMatrix, 0,
                                                       deviceInputArray, 0, inputArraySize, digit);
+        uint *debugCountMatrix = (uint *)malloc(sizeof(uint) * numBlocks * COUNT_ARRAY_SIZE);
+        cudaMemcpy(debugCountMatrix, deviceCountMatrix, sizeof(uint) * numBlocks * COUNT_ARRAY_SIZE,
+                   cudaMemcpyKind::cudaMemcpyDeviceToHost);
+        printArray("debugCountMatrix", debugCountMatrix, numBlocks * COUNT_ARRAY_SIZE);
 
         uint *deviceBlockSums = NULL;
         cudaMallocManaged(&deviceBlockSums, sizeof(uint) * numBlocks);
@@ -454,17 +467,24 @@ int main(int argc, char *argv[])
         sumOffsetTable<<<numBlocks, 1>>>(deviceBlockSums, deviceCountMatrix);
         cudaDeviceSynchronize();
 
-        for (int i = 0; i <= numBlocks / 2; i++)
+        // run until log2(numBlocks)
+        for (int i = 0; i <= (int)log2(numBlocks); i++)
         {
             printf("DEBUG: CPU LOOP i=%d\n", i);
             uint *deviceNewBlockSums = NULL;
-            cudaMallocManaged(&deviceBlockSums, sizeof(uint) * numBlocks);
+            cudaMallocManaged(&deviceNewBlockSums, sizeof(uint) * numBlocks);
+            cudaMemset(deviceNewBlockSums, 0, sizeof(uint) * numBlocks);
             shiftOffsetTable<<<numBlocks, 1>>>(deviceBlockSums, deviceNewBlockSums, numBlocks, i);
             cudaDeviceSynchronize();
             // copy over the new sums to the block sums
             cudaMemcpy(deviceBlockSums, deviceNewBlockSums, sizeof(uint) * numBlocks,
                        cudaMemcpyKind::cudaMemcpyDeviceToDevice);
             cudaDeviceSynchronize();
+            cudaFree(deviceNewBlockSums);
+            uint *tempCopy = (uint *)malloc(sizeof(uint) * numBlocks);
+            cudaMemcpy(tempCopy, deviceBlockSums, sizeof(uint) * numBlocks,
+                       cudaMemcpyKind::cudaMemcpyDeviceToHost);
+            printArray("deviceBlockSums", tempCopy, numBlocks);
         }
 
         // TODO: housekeeping?? whatever equivalent to what MPI does here
