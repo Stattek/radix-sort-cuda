@@ -20,7 +20,6 @@
 
 #define NUM_BASE 256
 #define COUNT_ARRAY_SIZE NUM_BASE // the count array will always hold the same number of values as the number of digits
-#define INITIAL_ARRAY_SIZE 20
 
 /**
  * @brief Finds the maxmimum value in an array at a digit and outputs it.
@@ -403,7 +402,6 @@ int main(int argc, char *argv[])
         // find out the number of digits in this maximum value
         maxDigit = getNumDigits(maxValue);
 
-        // FIXME: evil max possible value, don't like this
         maxPossibleValue = myPow(NUM_BASE, maxDigit);
     }
 
