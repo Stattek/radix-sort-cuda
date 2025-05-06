@@ -47,6 +47,8 @@ To enable these, set the define `DO_CUDA_DEBUG` at the top of the file to `1`.
 
 ### Overview
 
+Some important functions are:
+
 - `readIntFromFile()`
   - Reads integers from file and saves them to an array.
 - `computeOffsets()`
